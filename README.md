@@ -1,27 +1,30 @@
 # Polytopia-JAX
 
-Environnement de simulation inspiré de Polytopia, construit en JAX pour l’apprentissage par renforcement et doté d’une interface web permettant de visualiser les parties et leurs replays.
+Environnement de simulation inspiré de Polytopia, construit en JAX pour l'apprentissage par renforcement et doté d'une interface web permettant de visualiser les parties et leurs replays.
 
-L’objectif est de fournir :
-	•	un moteur de jeu performant, vectorisable et compatible avec jit et vmap ;
-	•	une infrastructure propre pour l’entraînement RL ;
-	•	un système de visualisation clair et indépendant du moteur.
+L'objectif est de fournir :
 
-⸻
+- un moteur de jeu performant, vectorisable et compatible avec jit et vmap ;
+- une infrastructure propre pour l'entraînement RL ;
+- un système de visualisation clair et indépendant du moteur.
 
-1. Objectifs du projet
-	•	Reproduire un ensemble de mécaniques proches de Polytopia : cartes en grille, villes, unités, production, combat, tours alternés.
-	•	Permettre la simulation en masse de parties pour l’apprentissage par renforcement.
-	•	Garantir une séparation stricte entre :
-	•	core (simulation pure en JAX),
-	•	rl (wrappers Gymnasium / PettingZoo),
-	•	web (API FastAPI),
-	•	frontend (visualisation React + PixiJS).
+---
 
-⸻
+## 1. Objectifs du projet
 
-2. Structure générale du projet
+- Reproduire un ensemble de mécaniques proches de Polytopia : cartes en grille, villes, unités, production, combat, tours alternés.
+- Permettre la simulation en masse de parties pour l'apprentissage par renforcement.
+- Garantir une séparation stricte entre :
+  - `core` (simulation pure en JAX),
+  - `rl` (wrappers Gymnasium / PettingZoo),
+  - `web` (API FastAPI),
+  - `frontend` (visualisation React + PixiJS).
 
+---
+
+## 2. Structure générale du projet
+
+```
 polytopia-jax/
 ├─ core/
 │  ├─ state.py           # Définition de GameState (pytree JAX)
@@ -61,17 +64,18 @@ polytopia-jax/
 │
 ├─ pyproject.toml
 └─ README.md
+```
 
+---
 
-⸻
+## 3. Cœur de simulation (module `core/`)
 
-3. Cœur de simulation (module core/)
+Le moteur est écrit en JAX. L'état du jeu est représenté sous forme de pytree statique afin de permettre jit et vmap.
 
-Le moteur est écrit en JAX. L’état du jeu est représenté sous forme de pytree statique afin de permettre jit et vmap.
+### Exemple de structure d'état
 
-Exemple de structure d’état
-
-dataclass
+```python
+@dataclass
 class GameState:
     terrain: jnp.ndarray        # [H, W]
     city_owner: jnp.ndarray     # [H, W]
@@ -83,122 +87,141 @@ class GameState:
     current_player: jnp.ndarray
     turn: jnp.ndarray
     done: jnp.ndarray
+```
 
-Fonctions principales
-	•	init_random(key, config) : génération d’un état initial.
-	•	step(state, action) : transition d’état pure et JIT-compatibile.
-	•	legal_actions_mask(state) : masque des actions valides.
+### Fonctions principales
 
-Aucune fonction dans core/ ne doit interagir avec l’extérieur (pas d’IO, pas d’état mutable).
+- `init_random(key, config)` : génération d'un état initial.
+- `step(state, action)` : transition d'état pure et JIT-compatible.
+- `legal_actions_mask(state)` : masque des actions valides.
 
-⸻
+Aucune fonction dans `core/` ne doit interagir avec l'extérieur (pas d'IO, pas d'état mutable).
 
-4. Environnements RL (rl/)
+---
+
+## 4. Environnements RL (`rl/`)
 
 Deux wrappers sont prévus :
 
-Gymnasium (single-agent)
+### Gymnasium (single-agent)
 
-Implémente l’API standard :
+Implémente l'API standard :
 
+```python
 env = PolytopiaEnv()
 obs, info = env.reset()
 obs, reward, terminated, truncated, info = env.step(action)
+```
 
-L’observation correspond à une vue normalisée du plateau pour le joueur courant.
+L'observation correspond à une vue normalisée du plateau pour le joueur courant.
 
-PettingZoo (multi-agent)
+### PettingZoo (multi-agent)
 
 Permet le self-play et les agents indépendants. Support des modes AEC et Parallel.
 
-⸻
+---
 
-5. Backend web (web/)
+## 5. Backend web (`web/`)
 
 Backend FastAPI exposant plusieurs endpoints :
-	•	GET /games/{id}/state/{turn} — état d’un tour donné.
-	•	GET /games/{id}/replay — récupération du replay complet.
-	•	GET /games — liste des replays disponibles.
-	•	WS /games/{id}/live — diffusion en direct (optionnel).
 
-models.py contient la version sérialisée de l’état (GameStateView), optimisée pour l’affichage.
+- `GET /games/{id}/state/{turn}` — état d'un tour donné.
+- `GET /games/{id}/replay` — récupération du replay complet.
+- `GET /games` — liste des replays disponibles.
+- `WS /games/{id}/live` — diffusion en direct (optionnel).
 
-⸻
+`models.py` contient la version sérialisée de l'état (`GameStateView`), optimisée pour l'affichage.
 
-6. Frontend (frontend/)
+---
+
+## 6. Frontend (`frontend/`)
 
 Frontend en React + TypeScript :
-	•	Board.tsx : affichage du plateau via Canvas ou PixiJS.
-	•	HUD.tsx : informations principales (tours, scores, joueur actif).
-	•	api.ts : communication avec FastAPI.
-	•	types.ts : types TypeScript pour GameStateView.
 
-Le frontend ne contient aucune logique de jeu : il se contente d’afficher.
+- `Board.tsx` : affichage du plateau via Canvas ou PixiJS.
+- `HUD.tsx` : informations principales (tours, scores, joueur actif).
+- `api.ts` : communication avec FastAPI.
+- `types.ts` : types TypeScript pour `GameStateView`.
 
-⸻
+Le frontend ne contient aucune logique de jeu : il se contente d'afficher.
 
-7. Installation
+---
 
-7.1 Backend et simulation
+## 7. Installation
+
+### 7.1 Backend et simulation
 
 Installer JAX selon la plateforme :
 
+```bash
 pip install "jax[cpu]"
+```
 
 Installer le projet :
 
+```bash
 pip install -e .
+```
 
-Dépendances principales : jax, gymnasium, pettingzoo, fastapi, uvicorn, pydantic.
+Dépendances principales : `jax`, `gymnasium`, `pettingzoo`, `fastapi`, `uvicorn`, `pydantic`.
 
-7.2 Frontend
+### 7.2 Frontend
 
+```bash
 cd frontend
 npm install
 npm run dev
+```
 
+---
 
-⸻
+## 8. Flux de travail recommandé
 
-8. Flux de travail recommandé
+### Étape 1 : Développer un sous-ensemble minimal du jeu
 
-Étape 1 : Développer un sous-ensemble minimal du jeu
-	•	petite carte fixe ;
-	•	unités simples ;
-	•	villes basiques ;
-	•	victoire par élimination.
+- petite carte fixe ;
+- unités simples ;
+- villes basiques ;
+- victoire par élimination.
 
-Étape 2 : Ajouter des tests unitaires
+### Étape 2 : Ajouter des tests unitaires
 
 Tester les transitions élémentaires (step, mouvements, combats, fin de partie).
 
-Étape 3 : Générer des replays
+### Étape 3 : Générer des replays
 
+```bash
 python scripts/generate_replay.py --output replays/game_001.json
+```
 
-Étape 4 : Visualisation
+### Étape 4 : Visualisation
 
-Backend :
+**Backend :**
 
+```bash
 uvicorn polytopia_jax.web.api:app --reload
+```
 
-Frontend :
+**Frontend :**
 
+```bash
 npm run dev
+```
 
+---
 
-⸻
+## 9. Documentation utile
 
-9. Documentation utile
-	•	JAX : https://docs.jax.dev
-	•	Gymnasium : https://gymnasium.farama.org/
-	•	PettingZoo : https://pettingzoo.farama.org/
-	•	FastAPI : https://fastapi.tiangolo.com/
+- [JAX](https://docs.jax.dev)
+- [Gymnasium](https://gymnasium.farama.org/)
+- [PettingZoo](https://pettingzoo.farama.org/)
+- [FastAPI](https://fastapi.tiangolo.com/)
 
-⸻
+---
 
-10. Évolutions prévues
-	•	Extension du gameplay (types d’unités, tech tree, diplomatie).
-	•	Optimisation du batching (simulation massive sur GPU/TPU).
-	•	Mode spectateur live via WebSocket.
-	•	Enregistrement compact des replays.
+## 10. Évolutions prévues
+
+- Extension du gameplay (types d'unités, tech tree, diplomatie).
+- Optimisation du batching (simulation massive sur GPU/TPU).
+- Mode spectateur live via WebSocket.
+- Enregistrement compact des replays.
