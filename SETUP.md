@@ -77,3 +77,4 @@ source venv/bin/activate
 python -c "from polytopia_jax.web.api import app; print('✓ Backend web prêt!')"
 ```
 
+

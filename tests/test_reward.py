@@ -183,3 +183,4 @@ def test_compute_reward_jit_compatible():
     # Vérifier que la récompense est un scalaire
     assert reward.shape == () or reward.shape == (1,)
 
+

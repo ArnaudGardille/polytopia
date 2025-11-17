@@ -2,9 +2,9 @@ import { TerrainType, UnitType } from '../types';
 
 /**
  * Mapping des types de terrain vers les chemins d'icônes Polytopia
- * Les icônes seront stockées dans public/icons/
+ * Utilise les vraies images téléchargées depuis le wiki
  */
-export function getTerrainIcon(terrainType: number): string {
+export function getTerrainIcon(terrainType: number): string | null {
   switch (terrainType) {
     case TerrainType.PLAIN:
       return '/icons/terrain/plain.svg';
@@ -23,14 +23,25 @@ export function getTerrainIcon(terrainType: number): string {
 
 /**
  * Mapping des types d'unités vers les chemins d'icônes Polytopia
+ * Utilise les vraies images téléchargées depuis le wiki
  */
-export function getUnitIcon(unitType: number): string {
+export function getUnitIcon(unitType: number, playerId?: number): string | null {
   switch (unitType) {
     case UnitType.WARRIOR:
-      return '/icons/units/warrior.svg';
+      // Utiliser une image de guerrier générique
+      return '/icons/units/WarriorA.png';
     default:
-      return '/icons/units/warrior.svg';
+      return '/icons/units/WarriorA.png';
   }
+}
+
+/**
+ * Mapping des villes vers les chemins d'icônes Polytopia
+ */
+export function getCityIcon(level: number, playerId?: number): string | null {
+  // Utiliser une image de ville générique
+  // On pourrait utiliser des images spécifiques selon le niveau
+  return '/icons/cities/Village.png';
 }
 
 /**

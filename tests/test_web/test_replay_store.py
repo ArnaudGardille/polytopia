@@ -205,3 +205,4 @@ def test_list_replays_ignores_invalid(temp_replays_dir):
     # Ne devrait pas inclure les fichiers invalides
     assert len(replays) == 0
 
+

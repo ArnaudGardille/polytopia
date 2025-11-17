@@ -109,3 +109,4 @@ def test_state_types():
     assert isinstance(state.turn, jnp.ndarray)
     assert isinstance(state.done, jnp.ndarray)
 
+

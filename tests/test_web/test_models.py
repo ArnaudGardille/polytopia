@@ -190,3 +190,4 @@ def test_state_response():
     assert response.turn == 5
     assert response.state.turn == 5
 
+

@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from 'react';
 import type { GameStateView } from '../types';
-import { getTerrainColor, getPlayerColor } from '../utils/iconMapper';
+import { getTerrainColor, getTerrainIcon, getPlayerColor, getUnitIcon, getCityIcon } from '../utils/iconMapper';
 
 interface BoardProps {
   state: GameStateView;
@@ -51,77 +51,189 @@ export function Board({ state, cellSize: propCellSize }: BoardProps) {
         viewBox={viewBox}
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Grille de terrain */}
+        {/* Grille de terrain avec images */}
         {terrain.map((row, y) =>
-          row.map((terrainType, x) => (
-            <rect
-              key={`terrain-${x}-${y}`}
-              x={x * cellSize}
-              y={y * cellSize}
-              width={cellSize}
-              height={cellSize}
-              fill={getTerrainColor(terrainType)}
-              stroke="#8B7355"
-              strokeWidth="1"
-            />
-          ))
+          row.map((terrainType, x) => {
+            const terrainIcon = getTerrainIcon(terrainType);
+            return (
+              <g key={`terrain-${x}-${y}`}>
+                {/* Fond de couleur en fallback */}
+                <rect
+                  x={x * cellSize}
+                  y={y * cellSize}
+                  width={cellSize}
+                  height={cellSize}
+                  fill={getTerrainColor(terrainType)}
+                  stroke="#8B7355"
+                  strokeWidth="1"
+                />
+                {/* Image de terrain si disponible */}
+                {terrainIcon && (
+                  <image
+                    href={terrainIcon}
+                    x={x * cellSize}
+                    y={y * cellSize}
+                    width={cellSize}
+                    height={cellSize}
+                    preserveAspectRatio="xMidYMid slice"
+                    opacity="0.9"
+                    onError={(e) => {
+                      // Cacher l'image si elle ne charge pas
+                      (e.target as SVGImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
+              </g>
+            );
+          })
         )}
 
-        {/* Villes */}
+        {/* Villes avec images */}
         {cities.map((city, idx) => {
           const [x, y] = city.pos;
           const playerColor = getPlayerColor(city.owner);
+          const cityIcon = getCityIcon(city.level, city.owner);
+          const iconSize = cellSize * 0.9;
+          const iconX = x * cellSize + (cellSize - iconSize) / 2;
+          const iconY = y * cellSize + (cellSize - iconSize) / 2;
+          
           return (
             <g key={`city-${idx}`} className="city-marker">
-              <circle
-                cx={x * cellSize + cellSize / 2}
-                cy={y * cellSize + cellSize / 2}
-                r={cellSize * 0.3}
-                fill={playerColor}
-                stroke="#fff"
-                strokeWidth="2"
-              />
-              <text
-                x={x * cellSize + cellSize / 2}
-                y={y * cellSize + cellSize / 2}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="white"
-                fontSize={cellSize * 0.3}
-                fontWeight="bold"
-              >
-                {city.level}
-              </text>
+              {cityIcon ? (
+                <>
+                  {/* Image de ville si disponible */}
+                  <image
+                    href={cityIcon}
+                    x={iconX}
+                    y={iconY}
+                    width={iconSize}
+                    height={iconSize}
+                    preserveAspectRatio="xMidYMid meet"
+                    opacity="0.95"
+                    onError={(e) => {
+                      (e.target as SVGImageElement).style.display = 'none';
+                    }}
+                  />
+                  {/* Badge de niveau en bas à droite */}
+                  <circle
+                    cx={x * cellSize + cellSize - cellSize * 0.15}
+                    cy={y * cellSize + cellSize - cellSize * 0.15}
+                    r={cellSize * 0.12}
+                    fill={playerColor}
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={x * cellSize + cellSize - cellSize * 0.15}
+                    y={y * cellSize + cellSize - cellSize * 0.15}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize={cellSize * 0.15}
+                    fontWeight="bold"
+                  >
+                    {city.level}
+                  </text>
+                </>
+              ) : (
+                <>
+                  {/* Fallback: cercle coloré si pas d'image */}
+                  <circle
+                    cx={x * cellSize + cellSize / 2}
+                    cy={y * cellSize + cellSize / 2}
+                    r={cellSize * 0.3}
+                    fill={playerColor}
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={x * cellSize + cellSize / 2}
+                    y={y * cellSize + cellSize / 2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize={cellSize * 0.3}
+                    fontWeight="bold"
+                  >
+                    {city.level}
+                  </text>
+                </>
+              )}
             </g>
           );
         })}
 
-        {/* Unités */}
+        {/* Unités avec images */}
         {units.map((unit, idx) => {
           const [x, y] = unit.pos;
           const playerColor = getPlayerColor(unit.owner);
+          const unitIcon = getUnitIcon(unit.type, unit.owner);
+          const iconSize = cellSize * 0.8;
+          const iconX = x * cellSize + (cellSize - iconSize) / 2;
+          const iconY = y * cellSize + (cellSize - iconSize) / 2;
+          
           return (
             <g key={`unit-${idx}`} className="unit-animation">
-              <circle
-                cx={x * cellSize + cellSize / 2}
-                cy={y * cellSize + cellSize / 2}
-                r={cellSize * 0.25}
-                fill={playerColor}
-                stroke="#fff"
-                strokeWidth="2"
-              />
-              {/* Indicateur HP */}
-              <text
-                x={x * cellSize + cellSize / 2}
-                y={y * cellSize + cellSize / 2 + cellSize * 0.15}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="white"
-                fontSize={cellSize * 0.2}
-                fontWeight="bold"
-              >
-                {unit.hp}
-              </text>
+              {/* Image de l'unité si disponible */}
+              {unitIcon ? (
+                <>
+                  <image
+                    href={unitIcon}
+                    x={iconX}
+                    y={iconY}
+                    width={iconSize}
+                    height={iconSize}
+                    preserveAspectRatio="xMidYMid meet"
+                    onError={(e) => {
+                      // Fallback vers le cercle si l'image ne charge pas
+                      (e.target as SVGImageElement).style.display = 'none';
+                    }}
+                  />
+                  {/* Badge HP en bas à droite */}
+                  <circle
+                    cx={x * cellSize + cellSize - cellSize * 0.2}
+                    cy={y * cellSize + cellSize - cellSize * 0.2}
+                    r={cellSize * 0.15}
+                    fill={playerColor}
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x={x * cellSize + cellSize - cellSize * 0.2}
+                    y={y * cellSize + cellSize - cellSize * 0.2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize={cellSize * 0.18}
+                    fontWeight="bold"
+                  >
+                    {unit.hp}
+                  </text>
+                </>
+              ) : (
+                <>
+                  {/* Fallback: cercle coloré si pas d'image */}
+                  <circle
+                    cx={x * cellSize + cellSize / 2}
+                    cy={y * cellSize + cellSize / 2}
+                    r={cellSize * 0.25}
+                    fill={playerColor}
+                    stroke="#fff"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={x * cellSize + cellSize / 2}
+                    y={y * cellSize + cellSize / 2 + cellSize * 0.15}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize={cellSize * 0.2}
+                    fontWeight="bold"
+                  >
+                    {unit.hp}
+                  </text>
+                </>
+              )}
             </g>
           );
         })}
