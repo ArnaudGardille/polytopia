@@ -19,23 +19,7 @@ Pour utiliser les vraies icônes du jeu Polytopia :
    - Créer des icônes personnalisées inspirées du style Polytopia
    - Utiliser des icônes libres de droits avec un style similaire
 
-3. **Placeholders actuels** :
-   - Des icônes SVG simples sont fournies comme placeholders
-   - Elles peuvent être remplacées par les vraies icônes Polytopia
 
-## Fichiers requis
 
-### Terrain
-- `plain.svg` - Plaine
-- `forest.svg` - Forêt
-- `mountain.svg` - Montagne
-- `water_shallow.svg` - Eau peu profonde
-- `water_deep.svg` - Eau profonde
 
-### Unités
-- `warrior.svg` - Guerrier
-
-## Notes
-
-Les icônes doivent être au format SVG pour une meilleure qualité et scalabilité, surtout pour le rendu mobile.
 
