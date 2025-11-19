@@ -2,11 +2,35 @@ import { useState, useEffect, useCallback } from 'react';
 import { Board } from './components/Board';
 import { HUD } from './components/HUD';
 import { GameList } from './components/GameList';
-import { listGames, getReplay } from './api';
-import type { GameInfo, GameStateView, ReplayResponse } from './types';
+import { MainMenu } from './components/MainMenu';
+import { ModeSelectionMenu } from './components/ModeSelectionMenu';
+import { GameSetupMenu } from './components/GameSetupMenu';
+import { LiveGameView } from './components/LiveGameView';
+import {
+  listGames,
+  getReplay,
+  createPerfectionGame,
+  sendLiveAction,
+  endLiveTurn,
+  getLiveGameState,
+} from './api';
+import type {
+  GameInfo,
+  GameStateView,
+  ReplayResponse,
+  Screen,
+  GameMode,
+  GameConfig,
+  LiveGameStateResponse,
+} from './types';
 import './styles/App.css';
 
 function App() {
+  // Navigation
+  const [currentScreen, setCurrentScreen] = useState<Screen>('mainMenu');
+  const [selectedMode, setSelectedMode] = useState<GameMode | null>(null);
+
+  // Replay viewer (pour l'écran "game")
   const [games, setGames] = useState<GameInfo[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [replay, setReplay] = useState<ReplayResponse | null>(null);
@@ -15,8 +39,18 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Charger la liste des replays au démarrage
+  // Live game state
+  const [liveSession, setLiveSession] = useState<LiveGameStateResponse | null>(null);
+  const [liveSelectedUnitId, setLiveSelectedUnitId] = useState<number | null>(null);
+  const [isStartingLiveGame, setIsStartingLiveGame] = useState(false);
+  const [liveStartError, setLiveStartError] = useState<string | null>(null);
+  const [liveRuntimeError, setLiveRuntimeError] = useState<string | null>(null);
+  const [isLiveBusy, setIsLiveBusy] = useState(false);
+
+  // Charger la liste des replays (seulement pour l'écran game)
   useEffect(() => {
+    if (currentScreen !== 'game') return;
+
     async function loadGames() {
       try {
         setIsLoading(true);
@@ -34,7 +68,7 @@ function App() {
       }
     }
     loadGames();
-  }, []);
+  }, [currentScreen]);
 
   // Charger le replay sélectionné
   useEffect(() => {
@@ -106,12 +140,146 @@ function App() {
   const currentState: GameStateView | null =
     replay && replay.states[currentTurn] ? replay.states[currentTurn] : null;
 
+  // Gestion de la navigation
+  const handleNavigate = (screen: Screen, mode?: GameMode, config?: GameConfig) => {
+    setCurrentScreen(screen);
+    if (mode) {
+      setSelectedMode(mode);
+    }
+    if (config) {
+      console.log('Game config:', config);
+      // TODO: Utiliser la config pour démarrer le jeu
+    }
+  };
+
+  const startPerfectionGame = async (config: GameConfig) => {
+    if (config.mode !== 'perfection') {
+      console.warn('Mode non supporté pour le live:', config.mode);
+      return;
+    }
+    setLiveStartError(null);
+    setIsStartingLiveGame(true);
+    try {
+      const session = await createPerfectionGame({
+        opponents: config.opponents,
+        difficulty: config.difficulty,
+      });
+      setLiveSession(session);
+      setLiveSelectedUnitId(null);
+      setLiveRuntimeError(null);
+      setCurrentScreen('liveGame');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Impossible de démarrer la partie.';
+      setLiveStartError(message);
+    } finally {
+      setIsStartingLiveGame(false);
+    }
+  };
+
+  const withLiveRequest = async (request: () => Promise<LiveGameStateResponse>) => {
+    if (!liveSession) return;
+    setIsLiveBusy(true);
+    try {
+      const updated = await request();
+      setLiveSession(updated);
+      setLiveRuntimeError(null);
+      // Vérifier que l'unité sélectionnée existe toujours
+      if (liveSelectedUnitId !== null) {
+        const stillExists = updated.state.units.some(
+          (unit) => (unit.id ?? -1) === liveSelectedUnitId
+        );
+        if (!stillExists) {
+          setLiveSelectedUnitId(null);
+        }
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Action live impossible.';
+      setLiveRuntimeError(message);
+    } finally {
+      setIsLiveBusy(false);
+    }
+  };
+
+  const handleLiveAction = async (actionId: number) => {
+    if (!liveSession) return;
+    await withLiveRequest(() => sendLiveAction(liveSession.gameId, actionId));
+  };
+
+  const handleLiveEndTurn = async () => {
+    if (!liveSession) return;
+    await withLiveRequest(() => endLiveTurn(liveSession.gameId));
+  };
+
+  const handleLiveRefresh = async () => {
+    if (!liveSession) return;
+    await withLiveRequest(() => getLiveGameState(liveSession.gameId));
+  };
+
+  const handleExitLiveGame = () => {
+    setLiveSession(null);
+    setLiveSelectedUnitId(null);
+    setLiveRuntimeError(null);
+    setCurrentScreen('modeSelection');
+  };
+
+  // Rendu conditionnel selon l'écran
+  if (currentScreen === 'mainMenu') {
+    return <MainMenu onNavigate={handleNavigate} />;
+  }
+
+  if (currentScreen === 'modeSelection') {
+    return <ModeSelectionMenu onNavigate={handleNavigate} />;
+  }
+
+  if (currentScreen === 'gameSetup' && selectedMode) {
+    const startProps =
+      selectedMode === 'perfection'
+        ? {
+            onStartGame: startPerfectionGame,
+            isStarting: isStartingLiveGame,
+            startError: liveStartError,
+          }
+        : {};
+    return (
+      <GameSetupMenu
+        mode={selectedMode}
+        onNavigate={handleNavigate}
+        {...startProps}
+      />
+    );
+  }
+
+  if (currentScreen === 'liveGame' && liveSession) {
+    return (
+      <LiveGameView
+        session={liveSession}
+        onExit={handleExitLiveGame}
+        onSendAction={handleLiveAction}
+        onEndTurn={handleLiveEndTurn}
+        onRefresh={handleLiveRefresh}
+        isBusy={isLiveBusy}
+        selectedUnitId={liveSelectedUnitId}
+        onSelectUnit={setLiveSelectedUnitId}
+        error={liveRuntimeError}
+      />
+    );
+  }
+
+  // Écran "game" - Replay viewer (logique existante)
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
       <header className="bg-gray-800 text-white p-4 shadow-lg">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold">Polytopia Replay Viewer</h1>
+          <button
+            onClick={() => handleNavigate('mainMenu')}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+          >
+            ← Menu principal
+          </button>
         </div>
       </header>
 

@@ -1,47 +1,77 @@
 import { TerrainType, UnitType } from '../types';
 
 /**
+ * Obtient la lettre de la tribu à partir du playerId
+ * Pour l'instant : 0 = Imperius (I), 1 = Xin-xi (X), défaut = Imperius (I)
+ */
+function getTribeLetter(playerId?: number): string {
+  if (playerId === undefined || playerId === null) {
+    return 'I'; // Imperius par défaut
+  }
+  // Joueur 0 = Imperius (I), Joueur 1 = Xin-xi (X)
+  return playerId === 1 ? 'X' : 'I';
+}
+
+/**
  * Mapping des types de terrain vers les chemins d'icônes Polytopia
- * Utilise les vraies images téléchargées depuis le wiki
+ * Utilise les vraies images PNG téléchargées
  */
 export function getTerrainIcon(terrainType: number): string | null {
   switch (terrainType) {
     case TerrainType.PLAIN:
-      return '/icons/terrain/plain.svg';
+      return '/icons/terrain/Grass.png';
     case TerrainType.FOREST:
-      return '/icons/terrain/forest.svg';
+      return '/icons/terrain/Imperius_ground_with_forest.png';
     case TerrainType.MOUNTAIN:
-      return '/icons/terrain/mountain.svg';
+      return '/icons/terrain/Imperius_ground_with_mountain.png';
     case TerrainType.WATER_SHALLOW:
-      return '/icons/terrain/water_shallow.svg';
+      return '/icons/terrain/Shallow_water-1.png';
     case TerrainType.WATER_DEEP:
-      return '/icons/terrain/water_deep.svg';
+      return '/icons/terrain/Ocean.png';
     default:
-      return '/icons/terrain/plain.svg';
+      return '/icons/terrain/Grass.png';
   }
 }
 
 /**
  * Mapping des types d'unités vers les chemins d'icônes Polytopia
- * Utilise les vraies images téléchargées depuis le wiki
+ * Utilise les vraies images PNG spécifiques à chaque tribu
  */
 export function getUnitIcon(unitType: number, playerId?: number): string | null {
+  const tribe = getTribeLetter(playerId);
+  
   switch (unitType) {
     case UnitType.WARRIOR:
-      // Utiliser une image de guerrier générique
-      return '/icons/units/WarriorA.png';
+      return `/icons/units/Warrior${tribe}.png`;
     default:
-      return '/icons/units/WarriorA.png';
+      // Par défaut, utiliser un guerrier
+      return `/icons/units/Warrior${tribe}.png`;
   }
 }
 
 /**
  * Mapping des villes vers les chemins d'icônes Polytopia
+ * Utilise les icônes spécifiques à chaque tribu et niveau
  */
 export function getCityIcon(level: number, playerId?: number): string | null {
-  // Utiliser une image de ville générique
-  // On pourrait utiliser des images spécifiques selon le niveau
-  return '/icons/cities/Village.png';
+  const tribe = getTribeLetter(playerId);
+  
+  // Pour les villes de niveau élevé (châteaux)
+  if (level >= 3) {
+    if (tribe === 'I') {
+      return '/icons/cities/castles/Imperius_city_castle.png';
+    } else if (tribe === 'X') {
+      return '/icons/cities/castles/Xin-xi_city_castle.png';
+    }
+  }
+  
+  // Pour les villes de niveau basique
+  if (tribe === 'I') {
+    return '/icons/cities/IMPERIUS_CITY.png';
+  }
+  
+  // Par défaut, utiliser le village générique
+  return '/icons/terrain/Village.png';
 }
 
 /**

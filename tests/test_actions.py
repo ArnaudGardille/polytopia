@@ -81,16 +81,32 @@ def test_directions():
         jnp.array([0, -1])
     )
     assert jnp.array_equal(
+        get_action_direction_delta(Direction.UP_RIGHT),
+        jnp.array([1, -1])
+    )
+    assert jnp.array_equal(
         get_action_direction_delta(Direction.RIGHT),
         jnp.array([1, 0])
+    )
+    assert jnp.array_equal(
+        get_action_direction_delta(Direction.DOWN_RIGHT),
+        jnp.array([1, 1])
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.DOWN),
         jnp.array([0, 1])
     )
     assert jnp.array_equal(
+        get_action_direction_delta(Direction.DOWN_LEFT),
+        jnp.array([-1, 1])
+    )
+    assert jnp.array_equal(
         get_action_direction_delta(Direction.LEFT),
         jnp.array([-1, 0])
+    )
+    assert jnp.array_equal(
+        get_action_direction_delta(Direction.UP_LEFT),
+        jnp.array([-1, -1])
     )
 
 
@@ -129,15 +145,19 @@ def test_constants():
 
 def test_direction_delta_array():
     """Test que DIRECTION_DELTA est correct."""
-    assert DIRECTION_DELTA.shape == (4, 2)
+    assert DIRECTION_DELTA.shape == (8, 2)
     assert DIRECTION_DELTA.dtype == jnp.int32
     
     # Vérifier chaque direction
     expected = jnp.array([
-        [0, -1],  # UP
-        [1, 0],   # RIGHT
-        [0, 1],   # DOWN
-        [-1, 0],  # LEFT
+        [0, -1],   # UP
+        [1, -1],   # UP_RIGHT
+        [1, 0],    # RIGHT
+        [1, 1],    # DOWN_RIGHT
+        [0, 1],    # DOWN
+        [-1, 1],   # DOWN_LEFT
+        [-1, 0],   # LEFT
+        [-1, -1],  # UP_LEFT
     ], dtype=jnp.int32)
     
     assert jnp.array_equal(DIRECTION_DELTA, expected)

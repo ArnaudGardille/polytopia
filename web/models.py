@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class UnitView(BaseModel):
     """Représentation d'une unité."""
     
+    id: int = Field(-1, description="ID interne de l'unité")
     type: int = Field(..., description="Type d'unité")
     pos: List[int] = Field(..., description="Position [x, y]")
     hp: int = Field(..., description="Points de vie")
@@ -78,8 +79,9 @@ class GameStateView(BaseModel):
         # Extraire les unités
         units = []
         raw_units = state.get("units", [])
-        for unit in raw_units:
+        for idx, unit in enumerate(raw_units):
             units.append(UnitView(
+                id=unit.get("id", idx),
                 type=unit["type"],
                 pos=unit["pos"],
                 hp=unit["hp"],
@@ -217,5 +219,30 @@ class GamesListResponse(BaseModel):
                 ]
             }
         }
+
+
+class LiveGameConfig(BaseModel):
+    """Payload de configuration pour une partie live."""
+
+    opponents: int = Field(3, ge=1, le=9, description="Nombre d'adversaires IA")
+    difficulty: str = Field("crazy", description="Difficulté symbolique (IA future)")
+    seed: Optional[int] = Field(None, description="Seed optionnelle pour reproductibilité")
+
+
+class LiveActionPayload(BaseModel):
+    """Payload d'action encodée pour une partie live."""
+
+    action_id: int = Field(..., ge=0, description="Action encodée (voir core.actions)")
+
+
+class LiveGameResponse(BaseModel):
+    """Réponse standard pour les endpoints live."""
+
+    game_id: str = Field(..., description="Identifiant de la partie live")
+    max_turns: int = Field(..., description="Limite de tours pour le mode")
+    opponents: int = Field(..., description="Nombre d'adversaires IA")
+    difficulty: str = Field(..., description="Difficulté choisie")
+    state: GameStateView = Field(..., description="État courant de la partie")
+
 
 

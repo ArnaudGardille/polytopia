@@ -1,6 +1,7 @@
 // Types correspondant aux modèles Pydantic du backend
 
 export interface UnitView {
+  id?: number;
   type: number;
   pos: [number, number];
   hp: number;
@@ -67,4 +68,33 @@ export const UnitType = {
   NONE: 0,
   WARRIOR: 1,
 } as const;
+
+// Types pour la navigation et la configuration de jeu
+export type Screen = 'mainMenu' | 'modeSelection' | 'gameSetup' | 'game' | 'liveGame';
+
+export type GameMode = 'perfection' | 'domination' | 'creative';
+
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'crazy';
+
+export interface GameConfig {
+  mode: GameMode;
+  opponents: number; // 3-9
+  difficulty: Difficulty;
+}
+
+// Types pour le mode live Perfection
+export interface LiveGameHandle {
+  gameId: string;
+  maxTurns: number;
+  opponents: number;
+  difficulty: Difficulty | string;
+}
+
+export interface LiveGameStateResponse extends LiveGameHandle {
+  state: GameStateView;
+}
+
+export interface LiveActionPayload {
+  actionId: number;
+}
 

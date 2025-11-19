@@ -17,22 +17,30 @@ class ActionType(IntEnum):
     NUM_ACTIONS = 7
 
 
-# Directions pour les mouvements (4 directions cardinales)
+# Directions pour les mouvements (8 directions)
 class Direction(IntEnum):
     """Directions de mouvement."""
     UP = 0  # (0, -1)
-    RIGHT = 1  # (1, 0)
-    DOWN = 2  # (0, 1)
-    LEFT = 3  # (-1, 0)
-    NUM_DIRECTIONS = 4
+    UP_RIGHT = 1  # (1, -1)
+    RIGHT = 2  # (1, 0)
+    DOWN_RIGHT = 3  # (1, 1)
+    DOWN = 4  # (0, 1)
+    DOWN_LEFT = 5  # (-1, 1)
+    LEFT = 6  # (-1, 0)
+    UP_LEFT = 7  # (-1, -1)
+    NUM_DIRECTIONS = 8
 
 
 # Mapping direction -> (dx, dy)
 DIRECTION_DELTA = jnp.array([
-    [0, -1],  # UP
-    [1, 0],   # RIGHT
-    [0, 1],   # DOWN
-    [-1, 0],  # LEFT
+    [0, -1],   # UP
+    [1, -1],   # UP_RIGHT
+    [1, 0],    # RIGHT
+    [1, 1],    # DOWN_RIGHT
+    [0, 1],    # DOWN
+    [-1, 1],   # DOWN_LEFT
+    [-1, 0],   # LEFT
+    [-1, -1],  # UP_LEFT
 ], dtype=jnp.int32)
 
 
@@ -45,15 +53,15 @@ def encode_action(
 ) -> int:
     """Encode une action en un entier.
     
-    Format d'encodage simple pour MVP:
+    Format d'encodage simple:
     - ActionType: 3 bits (0-6)
     - unit_id: 8 bits (0-255)
-    - direction: 2 bits (0-3)
+    - direction: 3 bits (0-7)
     - target_x: 6 bits (0-63)
     - target_y: 6 bits (0-63)
     - unit_type: 4 bits (0-15)
     
-    Total: 29 bits (fits in int32)
+    Total: 30 bits (fits in int32)
     
     Args:
         action_type: Type d'action (ActionType)
@@ -71,15 +79,15 @@ def encode_action(
         encoded |= (unit_id & 0xFF) << 3
     
     if direction is not None:
-        encoded |= (direction & 0x3) << 11
+        encoded |= (direction & 0x7) << 11
     
     if target_pos is not None:
         x, y = target_pos
-        encoded |= (x & 0x3F) << 13
-        encoded |= (y & 0x3F) << 19
+        encoded |= (x & 0x3F) << 14
+        encoded |= (y & 0x3F) << 20
     
     if unit_type is not None:
-        encoded |= (unit_type & 0xF) << 25
+        encoded |= (unit_type & 0xF) << 26
     
     return encoded
 
@@ -102,15 +110,15 @@ def decode_action(action_id: int) -> dict:
     # Extraire les champs avec opérations JAX pures
     action_type = action_id_array & 0x7
     unit_id_raw = (action_id_array >> 3) & 0xFF
-    direction_raw = (action_id_array >> 11) & 0x3
-    target_x_raw = (action_id_array >> 13) & 0x3F
-    target_y_raw = (action_id_array >> 19) & 0x3F
-    unit_type_raw = (action_id_array >> 25) & 0xF
+    direction_raw = (action_id_array >> 11) & 0x7
+    target_x_raw = (action_id_array >> 14) & 0x3F
+    target_y_raw = (action_id_array >> 20) & 0x3F
+    unit_type_raw = (action_id_array >> 26) & 0xF
     
     # Utiliser jnp.where pour gérer les valeurs invalides (valeurs sentinelles -1)
     # Ces valeurs seront converties en None dans le dict si elles sont invalides
     unit_id_val = jnp.where(unit_id_raw < 255, unit_id_raw, -1)
-    direction_val = jnp.where(direction_raw < 4, direction_raw, -1)
+    direction_val = jnp.where(direction_raw < Direction.NUM_DIRECTIONS, direction_raw, -1)
     target_x_val = jnp.where((target_x_raw < 64) & (target_y_raw < 64), target_x_raw, -1)
     target_y_val = jnp.where((target_x_raw < 64) & (target_y_raw < 64), target_y_raw, -1)
     unit_type_val = jnp.where(unit_type_raw > 0, unit_type_raw, -1)

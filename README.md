@@ -225,3 +225,69 @@ npm run dev
 - Optimisation du batching (simulation massive sur GPU/TPU).
 - Mode spectateur live via WebSocket.
 - Enregistrement compact des replays.
+
+---
+
+## 11. Feuille de route gameplay
+
+Cette section détaille les étapes proposées pour rapprocher progressivement la simulation d'une partie complète de Polytopia. Chaque phase peut être développée et testée indépendamment afin de conserver un moteur fonctionnel en permanence.
+
+1. **Phase 0 – Stabiliser l'existant**  
+   - Documenter explicitement le périmètre MVP (guerrier unique, capture directe, victoire par élimination) dans `core/state.py` et `core/rules.py`.  
+   - Étendre la suite de tests (`tests/test_rules.py`) pour couvrir mouvement, attaque, capture et fin de tour afin de verrouiller le comportement actuel avant d'ajouter de nouvelles mécaniques.  
+   - Mettre à jour ce README avec les limitations connues afin que les équipes RL/web sachent exactement ce qui est supporté.
+   
+   **Limitations connues (Phase 0)**  
+   - Une seule unité jouable (`WARRIOR`) avec déplacement orthogonal et combat de mêlée.  
+   - Aucune économie : pas d'étoiles, de bâtiments ni de technologies ; les villes sont réduites à un propriétaire et un niveau booléen.  
+   - Captures instantanées : entrer sur la case d'une ville neutralise ou conquiert immédiatement la capitale adverse et réinitialise son niveau à 1.  
+   - Condition de victoire unique : l'élimination. La partie se termine dès qu'un seul joueur possède encore au moins une ville.  
+   - Les masques d'actions restent permissifs (pas de validation complète côté moteur) tant que la partie n'est pas terminée.
+
+2. **Phase 1 – Boucle économique minimale**  
+   - Ajouter la notion d'étoiles et de population dans `GameState`, incrémenter le revenu des villes lors de `_apply_end_turn`, et déduire les coûts lorsque `TRAIN_UNIT`/`BUILD` sont déclenchées.  
+   - Implémenter quelques bâtiments basiques (ferme, mine, hutte) depuis `core/rules.py` pour modifier la population et donc les niveaux de villes.  
+   - Construire un masque d'actions légales qui bloque toute action non finançable.
+
+3. **Phase 2 – Progression des villes et scoring**  
+   - Faire évoluer `city_level` en fonction de la population, débloquer les bonus d'étoiles et introduire les améliorations de ville (mur, port, marché) avec leurs effets économiques.  
+   - Implémenter les deux modes de victoire : Perfection (score au tour 30) et Domination (élimination), en branchant la logique dans `_check_victory` et la boucle principale.  
+   - Créer une représentation de score compatible avec les replays/frontends.
+
+4. **Phase 3 – Arbre technologique**  
+   - Définir une structure de technologies avec coûts croissants et dépendances.  
+   - Connecter chaque techno aux unités/bâtiments/terrains qu'elle déverrouille (Climbing, Sailing, Roads...).  
+   - Étendre `core/actions.py` pour encoder la sélection d'une technologie et mettre à jour `legal_actions_mask`.
+
+5. **Phase 4 – Diversité d'unités terrestres**  
+   - Étendre `UnitType` + tables de stats pour inclure Défenseur, Archer, Cavalier, Mind Bender, Catapulte, etc., en respectant les compétences décrites dans `Polytopia.md`.  
+   - Implémenter les capacités spéciales (Dash, portée >1, conversion, riposte asymétrique) et garantir leur traçabilité JAX.  
+   - Ajouter des tests ciblés par type d'unité et exposer les nouveaux sprites/états au frontend.
+
+6. **Phase 5 – Navigation et terrains avancés**  
+   - Introduire les radeaux/bateaux et la transformation d'unités terrestres en navales via les ports.  
+   - Gérer les terrains `WATER_SHALLOW`, `WATER_DEEP`, montagnes et la nécessité d'avoir la techno adaptée pour y entrer.  
+   - Adapter les visualisations (backend + frontend) pour représenter les unités navales et les connexions maritimes.
+
+7. **Phase 6 – IA et difficultés**  
+   - Développer des heuristiques simples pour les IA (priorité expansion/combat) et appliquer des bonus d'étoiles par niveau de difficulté.  
+   - Supporter plusieurs adversaires simultanés et synchroniser les wrappers RL (`rl/`) avec cette logique multi-agent.  
+   - Enregistrer de nouveaux replays de référence pour tester les comportements.
+
+8. **Phase 7 – Contenus avancés et tribus spéciales**  
+   - Implémenter monuments, temples et leur contribution au score.  
+   - Ajouter des tribus à mécaniques uniques (Polaris, Cymanti, Aquarion, etc.) avec configuration activable/désactivable.  
+   - Prévoir une API de configuration côté `web/api.py` et `frontend/` afin que les utilisateurs puissent choisir précisément quelles mécaniques activer lors d'une simulation ou d'un replay.
+
+---
+
+## 11. Mode Perfection live
+
+Le backend expose désormais un mode Perfection jouable en temps réel :
+
+- `POST /live/perfection` — crée une partie live (paramètres `opponents`, `difficulty`, `seed`).
+- `GET /live/{game_id}` — récupère l’état courant.
+- `POST /live/{game_id}/action` — applique une action encodée (mêmes bits que `core.actions.encode_action`).
+- `POST /live/{game_id}/end_turn` — termine explicitement le tour du joueur humain.
+
+L’interface React permet de lancer ce mode via le bouton PERFECTION → `START GAME`, puis de jouer (sélection des unités, déplacements, attaques, fin de tour). Tant que les IA sont inactives, leurs tours sont automatiquement passés côté serveur pour revenir au joueur 0.

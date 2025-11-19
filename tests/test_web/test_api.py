@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from polytopia_jax.web.api import app
 from polytopia_jax.web.replay_store import clear_cache
+from polytopia_jax.core.actions import END_TURN_ACTION
 
 
 @pytest.fixture
@@ -217,4 +218,33 @@ def test_get_state_all_turns(client, sample_replay):
         data = response.json()
         assert data["turn"] == turn
 
+
+def test_live_perfection_flow(client):
+    """Test basique du mode live Perfection."""
+    create_response = client.post(
+        "/live/perfection",
+        json={"opponents": 2, "difficulty": "crazy", "seed": 7},
+    )
+    assert create_response.status_code == 200
+    live_data = create_response.json()
+    assert "game_id" in live_data
+    assert live_data["state"]["current_player"] == 0
+    game_id = live_data["game_id"]
+
+    # Récupération de l'état via GET
+    get_response = client.get(f"/live/{game_id}")
+    assert get_response.status_code == 200
+
+    # Appliquer une action (fin de tour)
+    action_response = client.post(
+        f"/live/{game_id}/action",
+        json={"action_id": END_TURN_ACTION},
+    )
+    assert action_response.status_code == 200
+
+    # Terminer explicitement le tour
+    end_turn_response = client.post(f"/live/{game_id}/end_turn")
+    assert end_turn_response.status_code == 200
+    end_data = end_turn_response.json()
+    assert "state" in end_data
 

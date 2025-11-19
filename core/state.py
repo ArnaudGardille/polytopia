@@ -1,4 +1,16 @@
-"""Définition de GameState - État du jeu comme pytree JAX."""
+"""Définition de GameState - État du jeu comme pytree JAX.
+
+Phase 0 (MVP) : limitations connues
+-----------------------------------
+- Une seule unité active (``UnitType.WARRIOR``) avec des statistiques fixes.
+- Pas d'économie ni d'arbre technologique : les villes se réduisent à un
+  propriétaire et à un niveau booléen (>0 signifie qu'une ville existe).
+- Les villes sont capturées instantanément par mouvement et une capture d'une
+  capitale ennemie supprime immédiatement ce joueur de la partie.
+- La seule condition de victoire est l'élimination (un unique joueur possède
+  au moins une ville). Les autres modes seront ajoutés dans les phases
+  ultérieures.
+"""
 
 from typing import Optional
 import jax
@@ -17,7 +29,7 @@ class TerrainType:
     NUM_TYPES = 5
 
 
-# Constantes de types d'unités
+# Constantes de types d'unités - limité à WARRIOR pour le MVP Phase 0
 class UnitType:
     """Types d'unités."""
     NONE = 0
@@ -48,6 +60,7 @@ class GameState:
     units_hp: jnp.ndarray  # [N_units_max] - points de vie
     units_owner: jnp.ndarray  # [N_units_max] - propriétaire de chaque unité
     units_active: jnp.ndarray  # [N_units_max] - booléen indiquant si l'unité existe
+    units_has_acted: jnp.ndarray  # [N_units_max] - booléen action effectuée ce tour
     
     # État du jeu
     current_player: jnp.ndarray  # joueur actif (scalaire)
@@ -78,6 +91,7 @@ class GameState:
             units_hp=jnp.zeros(max_units, dtype=jnp.int32),
             units_owner=jnp.full(max_units, NO_OWNER, dtype=jnp.int32),
             units_active=jnp.zeros(max_units, dtype=jnp.bool_),
+            units_has_acted=jnp.zeros(max_units, dtype=jnp.bool_),
             current_player=jnp.array(0, dtype=jnp.int32),
             turn=jnp.array(0, dtype=jnp.int32),
             done=jnp.array(False, dtype=jnp.bool_),
@@ -86,5 +100,6 @@ class GameState:
             max_units=max_units,
             num_players=num_players,
         )
+
 
 

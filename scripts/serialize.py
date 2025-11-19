@@ -32,6 +32,7 @@ def state_to_dict(state: GameState) -> dict:
     for i in range(state.max_units):
         if bool(units_active_arr[i]):
             unit = {
+                "id": int(i),
                 "type": int(units_type_arr[i].item()),
                 "pos": [
                     int(units_pos_arr[i, 0].item()),

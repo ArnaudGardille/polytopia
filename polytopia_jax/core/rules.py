@@ -1,4 +1,16 @@
-"""Logique de jeu - règles et transitions d'état."""
+"""Logique de jeu - règles et transitions d'état.
+
+Phase 0 (MVP) : périmètre fonctionnel
+-------------------------------------
+- Seules les unités ``WARRIOR`` existent, sans promotion ni compétences
+  spéciales. Toutes les actions de combat sont donc résolues comme du corps à
+  corps.
+- Les villes sont capturées par simple entrée sur la case ; aucune économie,
+  production ou coût de recrutement n'est encore simulé.
+- La fin de partie repose uniquement sur l'élimination : dès qu'un joueur ne
+  possède plus de capitale (``city_level > 0``), il est retiré et la partie se
+  termine lorsqu'il ne reste qu'un propriétaire vivant.
+"""
 
 import jax
 import jax.numpy as jnp
@@ -73,29 +85,28 @@ def _apply_move(state: GameState, decoded: dict) -> GameState:
     unit_id = jnp.asarray(unit_id_val, dtype=jnp.int32) if not isinstance(unit_id_val, (int, type(None))) else (jnp.array(unit_id_val, dtype=jnp.int32) if unit_id_val is not None and unit_id_val >= 0 else jnp.array(-1, dtype=jnp.int32))
     direction = jnp.asarray(direction_val, dtype=jnp.int32) if not isinstance(direction_val, (int, type(None))) else (jnp.array(direction_val, dtype=jnp.int32) if direction_val is not None and direction_val >= 0 else jnp.array(-1, dtype=jnp.int32))
     
-    # Vérifier que unit_id et direction sont valides (valeurs >= 0)
+    # Vérifier que unit_id et direction sont valides
     has_unit_id = unit_id >= 0
     has_direction = direction >= 0
     both_valid = has_unit_id & has_direction
-    
+
     def do_move(state):
         # Vérifier que l'unité existe et appartient au joueur actif
-        # Convertir unit_id en int pour l'indexation (nécessaire pour JAX)
         unit_id_int = jnp.asarray(unit_id, dtype=jnp.int32)
         is_valid = (
-            (unit_id_int < state.max_units) &
-            state.units_active[unit_id_int] &
-            (state.units_owner[unit_id_int] == state.current_player)
+            (unit_id_int < state.max_units)
+            & state.units_active[unit_id_int]
+            & (state.units_owner[unit_id_int] == state.current_player)
+            & (~state.units_has_acted[unit_id_int])
         )
-        
+
         return jax.lax.cond(
             is_valid,
             lambda s: _perform_move(s, unit_id_int, direction),
             lambda s: s,
             state
         )
-    
-    # Utiliser cond pour éviter les erreurs de traçage
+
     return jax.lax.cond(
         both_valid,
         do_move,
@@ -118,37 +129,31 @@ def _perform_move(state: GameState, unit_id: jnp.ndarray, direction: jnp.ndarray
     
     # Calculer la nouvelle position
     current_pos = state.units_pos[unit_id]
-    # Utiliser l'indexation JAX directement sur DIRECTION_DELTA
     from .actions import DIRECTION_DELTA
     delta = DIRECTION_DELTA[direction]
     new_pos = current_pos + delta
     new_x, new_y = new_pos[0], new_pos[1]
     
-    # Vérifier que la nouvelle position est valide
     is_in_bounds = (
         (new_x >= 0) & (new_x < state.width) &
         (new_y >= 0) & (new_y < state.height)
     )
-    
-    # Vérifier que la case n'est pas occupée par une autre unité
     pos_occupied = _is_position_occupied(state, new_x, new_y, unit_id)
-    
-    # Vérifier que le terrain est traversable
     terrain = state.terrain[new_y, new_x]
     is_traversable = (
         (terrain == TerrainType.PLAIN) |
         (terrain == TerrainType.FOREST)
     )
-    
     can_move = is_in_bounds & ~pos_occupied & is_traversable
     
     def move_unit(state):
-        # Déplacer l'unité
         new_units_pos = state.units_pos.at[unit_id, 0].set(new_x)
         new_units_pos = new_units_pos.at[unit_id, 1].set(new_y)
-        state = state.replace(units_pos=new_units_pos)
-        
-        # Vérifier si on capture une ville
+        new_units_has_acted = state.units_has_acted.at[unit_id].set(True)
+        state = state.replace(
+            units_pos=new_units_pos,
+            units_has_acted=new_units_has_acted,
+        )
         state = _check_city_capture(state, unit_id, new_x, new_y)
         return state
     
@@ -183,10 +188,11 @@ def _apply_attack(state: GameState, decoded: dict) -> GameState:
     
     # Vérifier que l'attaquant est valide
     is_attacker_valid = (
-        (attacker_id >= 0) &
-        (attacker_id < state.max_units) &
-        state.units_active[attacker_id] &
-        (state.units_owner[attacker_id] == state.current_player)
+        (attacker_id >= 0)
+        & (attacker_id < state.max_units)
+        & state.units_active[attacker_id]
+        & (state.units_owner[attacker_id] == state.current_player)
+        & (~state.units_has_acted[attacker_id])
     )
     
     # Trouver l'unité cible à la position
@@ -198,9 +204,11 @@ def _apply_attack(state: GameState, decoded: dict) -> GameState:
     target_owner = state.units_owner[target_id]
     is_enemy = attacker_owner != target_owner
     
-    # Vérifier la portée (mêlée = portée 1)
+    # Vérifier la portée (mêlée = distance de Chebyshev <= 1)
     attacker_pos = state.units_pos[attacker_id]
-    distance = jnp.abs(attacker_pos[0] - target_x) + jnp.abs(attacker_pos[1] - target_y)
+    dx = jnp.abs(attacker_pos[0] - target_x)
+    dy = jnp.abs(attacker_pos[1] - target_y)
+    distance = jnp.maximum(dx, dy)
     in_range = distance <= 1
     
     can_attack = is_attacker_valid & has_target & is_enemy & in_range
@@ -259,7 +267,12 @@ def _perform_combat(state: GameState, attacker_id: int, target_id: int) -> GameS
         state
     )
     
-    state = state.replace(units_hp=new_units_hp, units_active=new_units_active)
+    new_units_has_acted = state.units_has_acted.at[attacker_id].set(True)
+    state = state.replace(
+        units_hp=new_units_hp,
+        units_active=new_units_active,
+        units_has_acted=new_units_has_acted,
+    )
     
     # Vérifier la victoire
     state = _check_victory(state)
@@ -341,6 +354,7 @@ def _perform_train_unit(state: GameState, unit_type: jnp.ndarray, target_x: jnp.
             units_hp=new_units_hp,
             units_owner=new_units_owner,
             units_active=new_units_active,
+            units_has_acted=state.units_has_acted.at[free_slot].set(False),
         )
     
     return jax.lax.cond(
@@ -362,6 +376,7 @@ def _apply_end_turn(state: GameState) -> GameState:
     return state.replace(
         current_player=next_player,
         turn=new_turn,
+        units_has_acted=jnp.zeros_like(state.units_has_acted),
     )
 
 
@@ -491,4 +506,3 @@ def legal_actions_mask(state: GameState) -> jnp.ndarray:
     mask = jnp.where(state.done, jnp.zeros_like(mask), mask)
     
     return mask
-

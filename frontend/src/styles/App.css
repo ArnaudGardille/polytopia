@@ -54,15 +54,120 @@ body {
 
 /* Animation pour les unités */
 .unit-animation {
-  transition: transform 0.2s ease-in-out;
-}
-
-.unit-animation:hover {
-  transform: scale(1.1);
+  transform-origin: center;
 }
 
 /* Styles pour les villes */
 .city-marker {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Styles low-poly pour les menus */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.low-poly-star {
+  animation: twinkle 3s ease-in-out infinite;
+  animation-delay: calc(var(--delay, 0) * 0.1s);
+}
+
+/* Effet de brillance sur les boutons */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.low-poly-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.low-poly-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.low-poly-button:hover::before {
+  left: 100%;
+}
+
+/* Style pour les cartes low-poly */
+.low-poly-card {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Gradient low-poly pour les backgrounds */
+.low-poly-gradient-sky {
+  background: linear-gradient(
+    to bottom,
+    #ff6b9d 0%,
+    #ff8e6b 25%,
+    #ffb347 50%,
+    #ffd93d 75%,
+    #ffeaa7 100%
+  );
+}
+
+.low-poly-gradient-sunset {
+  background: linear-gradient(
+    to bottom,
+    #ff9a9e 0%,
+    #fecfef 50%,
+    #fecfef 100%
+  );
+}
+
+.low-poly-gradient-purple {
+  background: linear-gradient(
+    to bottom,
+    #ff9a9e 0%,
+    #fad0c4 30%,
+    #ffd1ff 60%,
+    #a8edea 100%
+  );
+}
+
+/* Animation subtile pour les particules */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  33% {
+    transform: translateY(-10px) translateX(5px);
+  }
+  66% {
+    transform: translateY(5px) translateX(-5px);
+  }
+}
+
+.low-poly-particle {
+  animation: float 6s ease-in-out infinite;
+  animation-delay: calc(var(--delay, 0) * 0.1s);
 }
 

@@ -43,7 +43,7 @@ def _validate_game_id(game_id: str) -> str:
     
     # Vérifier qu'il n'y a pas de path traversal
     if ".." in game_id or "/" in game_id or "\\" in game_id:
-        raise ValueError(f"ID de replay invalide: {game_id}")
+        raise ValueError(f"path traversal détecté pour l'ID: {game_id}")
     
     # Vérifier que l'ID n'est pas vide
     if not game_id:
@@ -195,4 +195,3 @@ def clear_cache():
     """Vide le cache des replays (utile pour les tests)."""
     global _replay_cache
     _replay_cache.clear()
-

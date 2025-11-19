@@ -9,6 +9,16 @@ from polytopia_jax.core.actions import ActionType, Direction, encode_action
 from polytopia_jax.core.init import init_random, GameConfig
 
 
+def _make_empty_state(height: int = 4, width: int = 4, max_units: int = 4) -> GameState:
+    """Crée un GameState vide et déterministe pour les tests unitaires."""
+    return GameState.create_empty(
+        height=height,
+        width=width,
+        max_units=max_units,
+        num_players=2,
+    )
+
+
 def test_step_no_op():
     """Test que NO_OP ne change pas l'état."""
     key = jax.random.PRNGKey(42)
@@ -78,6 +88,82 @@ def test_step_move_invalid_out_of_bounds():
     assert new_state.units_pos[0, 1] == 0
 
 
+def test_unit_single_action_per_turn():
+    """Vérifie qu'une unité ne peut agir qu'une fois par tour."""
+    key = jax.random.PRNGKey(0)
+    config = GameConfig(height=8, width=8, num_players=2, max_units=20)
+    state = init_random(key, config)
+
+    # Forcer une unité contrôlée par le joueur 0 au centre
+    player_units = jnp.where(
+        (state.units_owner == 0) & state.units_active
+    )[0]
+    assert len(player_units) > 0
+    unit_id = int(player_units[0])
+    state = state.replace(
+        units_pos=state.units_pos.at[unit_id, 0].set(2)
+    )
+    state = state.replace(
+        units_pos=state.units_pos.at[unit_id, 1].set(2)
+    )
+
+    move_action = encode_action(
+        ActionType.MOVE,
+        unit_id=unit_id,
+        direction=Direction.RIGHT,
+    )
+
+    first_state = step(state, move_action)
+    second_state = step(first_state, move_action)
+
+    # Deuxième mouvement doit être ignoré
+    assert jnp.array_equal(
+        second_state.units_pos[unit_id],
+        first_state.units_pos[unit_id],
+    )
+
+    # Passer un tour complet (joueur 0 -> 1 -> 0)
+    after_end_turn = step(second_state, encode_action(ActionType.END_TURN))
+    back_to_player = step(after_end_turn, encode_action(ActionType.END_TURN))
+    third_state = step(back_to_player, move_action)
+
+    # Le mouvement redevient possible
+    assert third_state.units_pos[unit_id, 0] == first_state.units_pos[unit_id, 0] + 1
+def test_move_blocked_by_occupied_tile():
+    """Une unité ne peut pas entrer sur une case occupée."""
+    state = _make_empty_state()
+    
+    units_type = state.units_type.at[0].set(UnitType.WARRIOR)
+    units_type = units_type.at[1].set(UnitType.WARRIOR)
+    units_owner = state.units_owner.at[0].set(0)
+    units_owner = units_owner.at[1].set(0)
+    units_pos = state.units_pos.at[0, 0].set(1)
+    units_pos = units_pos.at[0, 1].set(1)
+    units_pos = units_pos.at[1, 0].set(2)
+    units_pos = units_pos.at[1, 1].set(1)
+    units_hp = state.units_hp.at[0].set(10)
+    units_hp = units_hp.at[1].set(10)
+    units_active = state.units_active.at[0].set(True)
+    units_active = units_active.at[1].set(True)
+    
+    state = state.replace(
+        units_type=units_type,
+        units_owner=units_owner,
+        units_pos=units_pos,
+        units_hp=units_hp,
+        units_active=units_active,
+    )
+    
+    action = encode_action(
+        ActionType.MOVE,
+        unit_id=0,
+        direction=Direction.RIGHT,
+    )
+    new_state = step(state, action)
+    
+    assert tuple(new_state.units_pos[0].tolist()) == (1, 1)
+
+
 def test_step_attack():
     """Test une attaque."""
     key = jax.random.PRNGKey(42)
@@ -121,6 +207,80 @@ def test_step_attack():
         assert new_state.units_hp[target_id] < original_hp_target
 
 
+def test_attack_removes_defeated_unit_and_moves_attacker():
+    """L'attaquant occupe la case de la cible détruite."""
+    state = _make_empty_state()
+    
+    units_type = state.units_type.at[0].set(UnitType.WARRIOR)
+    units_type = units_type.at[1].set(UnitType.WARRIOR)
+    units_owner = state.units_owner.at[0].set(0)
+    units_owner = units_owner.at[1].set(1)
+    units_pos = state.units_pos.at[0, 0].set(1)
+    units_pos = units_pos.at[0, 1].set(1)
+    units_pos = units_pos.at[1, 0].set(2)
+    units_pos = units_pos.at[1, 1].set(1)
+    units_hp = state.units_hp.at[0].set(10)
+    units_hp = units_hp.at[1].set(1)
+    units_active = state.units_active.at[0].set(True)
+    units_active = units_active.at[1].set(True)
+    
+    state = state.replace(
+        units_type=units_type,
+        units_owner=units_owner,
+        units_pos=units_pos,
+        units_hp=units_hp,
+        units_active=units_active,
+    )
+    
+    action = encode_action(
+        ActionType.ATTACK,
+        unit_id=0,
+        target_pos=(2, 1),
+    )
+    new_state = step(state, action)
+    
+    assert tuple(new_state.units_pos[0].tolist()) == (2, 1)
+    assert not bool(new_state.units_active[1])
+
+
+def test_city_capture_changes_owner_and_finishes_game():
+    """Capturer la dernière ville ennemie déclenche la victoire."""
+    state = _make_empty_state()
+    
+    units_type = state.units_type.at[0].set(UnitType.WARRIOR)
+    units_owner = state.units_owner.at[0].set(0)
+    units_pos = state.units_pos.at[0, 0].set(1)
+    units_pos = units_pos.at[0, 1].set(1)
+    units_hp = state.units_hp.at[0].set(10)
+    units_active = state.units_active.at[0].set(True)
+    
+    city_owner = state.city_owner.at[0, 0].set(0)
+    city_level = state.city_level.at[0, 0].set(1)
+    city_owner = city_owner.at[1, 2].set(1)
+    city_level = city_level.at[1, 2].set(1)
+    
+    state = state.replace(
+        units_type=units_type,
+        units_owner=units_owner,
+        units_pos=units_pos,
+        units_hp=units_hp,
+        units_active=units_active,
+        city_owner=city_owner,
+        city_level=city_level,
+    )
+    
+    action = encode_action(
+        ActionType.MOVE,
+        unit_id=0,
+        direction=Direction.RIGHT,
+    )
+    new_state = step(state, action)
+    
+    assert new_state.city_owner[1, 2] == 0
+    assert new_state.city_level[1, 2] == 1
+    assert bool(new_state.done.item())
+
+
 def test_step_end_turn():
     """Test la fin de tour."""
     key = jax.random.PRNGKey(42)
@@ -155,6 +315,20 @@ def test_step_end_turn_increments_turn():
     # Le tour devrait s'être incrémenté
     assert new_state.turn == state.turn + 1
     assert new_state.current_player == 0
+
+
+def test_end_turn_cycles_players_and_turn_counter():
+    """Les fins de tour avancent les joueurs et comptent les tours complets."""
+    state = _make_empty_state()
+    action = encode_action(ActionType.END_TURN)
+    
+    mid_state = step(state, action)
+    assert mid_state.current_player.item() == 1
+    assert mid_state.turn.item() == 0
+    
+    full_round_state = step(mid_state, action)
+    assert full_round_state.current_player.item() == 0
+    assert full_round_state.turn.item() == 1
 
 
 def test_legal_actions_mask():
@@ -241,4 +415,3 @@ def test_step_invalid_action_ignored():
     
     # L'état ne devrait pas avoir changé
     assert jnp.array_equal(new_state.units_pos, state.units_pos)
-

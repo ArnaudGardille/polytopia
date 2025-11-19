@@ -78,8 +78,11 @@ class SimpleBot:
         """Retourne la liste des IDs d'unités du joueur actif."""
         units = []
         for i in range(state.max_units):
-            if (state.units_active[i] and 
-                int(jnp.asarray(state.units_owner[i])) == self.player_id):
+            if (
+                state.units_active[i]
+                and int(jnp.asarray(state.units_owner[i])) == self.player_id
+                and not bool(jnp.asarray(state.units_has_acted[i]))
+            ):
                 units.append(i)
         return units
     
@@ -95,10 +98,14 @@ class SimpleBot:
         
         # Vérifier les cases adjacentes pour des unités ennemies
         directions = [
-            (0, -1),  # UP
-            (1, 0),   # RIGHT
-            (0, 1),   # DOWN
-            (-1, 0),  # LEFT
+            (0, -1),   # UP
+            (1, -1),   # UP_RIGHT
+            (1, 0),    # RIGHT
+            (1, 1),    # DOWN_RIGHT
+            (0, 1),    # DOWN
+            (-1, 1),   # DOWN_LEFT
+            (-1, 0),   # LEFT
+            (-1, -1),  # UP_LEFT
         ]
         
         for dx, dy in directions:
@@ -234,11 +241,16 @@ class SimpleBot:
         dy = to_y - from_y
         
         # Prioriser la direction avec le plus grand déplacement
+        if dx > 0 and dy < 0:
+            return Direction.UP_RIGHT
+        if dx > 0 and dy > 0:
+            return Direction.DOWN_RIGHT
+        if dx < 0 and dy > 0:
+            return Direction.DOWN_LEFT
+        if dx < 0 and dy < 0:
+            return Direction.UP_LEFT
         if abs(dx) > abs(dy):
-            if dx > 0:
-                return Direction.RIGHT
-            elif dx < 0:
-                return Direction.LEFT
+            return Direction.RIGHT if dx > 0 else Direction.LEFT
         else:
             if dy > 0:
                 return Direction.DOWN
@@ -251,9 +263,13 @@ class SimpleBot:
         """Retourne le delta (dx, dy) pour une direction."""
         deltas = {
             Direction.UP: (0, -1),
+            Direction.UP_RIGHT: (1, -1),
             Direction.RIGHT: (1, 0),
+            Direction.DOWN_RIGHT: (1, 1),
             Direction.DOWN: (0, 1),
+            Direction.DOWN_LEFT: (-1, 1),
             Direction.LEFT: (-1, 0),
+            Direction.UP_LEFT: (-1, -1),
         }
         return deltas.get(direction, (0, 0))
 
