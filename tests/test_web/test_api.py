@@ -56,6 +56,8 @@ def sample_replay(temp_replays_dir):
                 "units": [
                     {"type": 1, "pos": [0, 0], "hp": 10, "owner": 0}
                 ],
+                "city_population": [[0, 1], [0, 0]],
+                "player_stars": [5, 5],
                 "current_player": 0,
                 "turn": 0,
                 "done": False
@@ -67,6 +69,8 @@ def sample_replay(temp_replays_dir):
                 "units": [
                     {"type": 1, "pos": [1, 0], "hp": 10, "owner": 0}
                 ],
+                "city_population": [[0, 1], [0, 0]],
+                "player_stars": [7, 5],
                 "current_player": 1,
                 "turn": 1,
                 "done": False
@@ -78,6 +82,8 @@ def sample_replay(temp_replays_dir):
                 "units": [
                     {"type": 1, "pos": [1, 0], "hp": 8, "owner": 0}
                 ],
+                "city_population": [[0, 1], [0, 0]],
+                "player_stars": [9, 5],
                 "current_player": 0,
                 "turn": 2,
                 "done": False
@@ -247,4 +253,3 @@ def test_live_perfection_flow(client):
     assert end_turn_response.status_code == 200
     end_data = end_turn_response.json()
     assert "state" in end_data
-

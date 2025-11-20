@@ -36,6 +36,7 @@ def test_compute_reward_city_capture():
     state = prev_state.replace(
         city_owner=prev_state.city_owner.at[5, 5].set(0),  # Joueur 0 capture
         city_level=prev_state.city_level.at[5, 5].set(1),
+        city_population=prev_state.city_population.at[5, 5].set(1),
     )
     
     # S'assurer que le joueur actif est 0
@@ -100,6 +101,7 @@ def test_count_cities_captured():
     state = prev_state.replace(
         city_owner=prev_state.city_owner.at[3, 3].set(0),
         city_level=prev_state.city_level.at[3, 3].set(1),
+        city_population=prev_state.city_population.at[3, 3].set(1),
     )
     
     count = _count_cities_captured(state, prev_state, 0)
@@ -182,7 +184,6 @@ def test_compute_reward_jit_compatible():
     
     # Vérifier que la récompense est un scalaire
     assert reward.shape == () or reward.shape == (1,)
-
 
 
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { LiveGameStateResponse } from '../types';
-import { Board } from './Board';
+import { TerrainType } from '../types';
+import { Board, type MoveTarget } from './Board';
 import {
   Direction,
   encodeAttack,
@@ -77,6 +78,21 @@ export function LiveGameView({
     return HEX_OFFSETS[parity][dir] ?? null;
   };
 
+  const getUnitAt = (x: number, y: number) =>
+    state.units.find((unit) => unit.pos[0] === x && unit.pos[1] === y);
+
+  const isWithinBounds = (x: number, y: number) =>
+    x >= 0 && x < boardWidth && y >= 0 && y < boardHeight;
+
+  const isTileTraversable = (x: number, y: number) => {
+    if (!isWithinBounds(x, y)) return false;
+    const terrain = state.terrain[y]?.[x];
+    return (
+      terrain === TerrainType.PLAIN ||
+      terrain === TerrainType.FOREST
+    );
+  };
+
   const resolveDirKey = (button: string): HexDirKey | null => {
     if (
       button === 'NW' ||
@@ -130,13 +146,29 @@ export function LiveGameView({
     return target;
   };
 
-  const handleHexCommand = (dir: HexDirKey) => {
+  const getDirectionFromOffset = (
+    dx: number,
+    dy: number,
+    fromY: number
+  ): Direction | null => {
+    if (dx === 0 && dy === -2) return Direction.UP;
+    if (dx === 0 && dy === 2) return Direction.DOWN;
+    const parity = fromY % 2 === 0 ? 'even' : 'odd';
+    const hexOffsets = HEX_OFFSETS[parity];
+    for (const dir of Object.keys(hexOffsets) as HexDirKey[]) {
+      const [offsetX, offsetY] = hexOffsets[dir];
+      if (offsetX === dx && offsetY === dy) {
+        return directionFromDelta([offsetX, offsetY]);
+      }
+    }
+    return null;
+  };
+
+  const executeActionAtTarget = (target: [number, number]) => {
     if (!selectedUnit || selectedUnitId === null) return;
-    const target = getTargetForDir(dir);
-    if (!target) return;
-    const occupant = state.units.find(
-      (unit) => unit.pos[0] === target[0] && unit.pos[1] === target[1]
-    );
+    const [targetX, targetY] = target;
+    if (!isWithinBounds(targetX, targetY)) return;
+    const occupant = getUnitAt(targetX, targetY);
     const unitId = selectedUnit.id ?? selectedUnitId ?? 0;
     if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
       return;
@@ -146,34 +178,74 @@ export function LiveGameView({
       onSendAction(actionId);
       return;
     }
-    const offset = getNeighborOffset(dir, selectedUnit.pos[1]);
-    if (!offset) return;
-    const direction = directionFromDelta(offset);
+    if (!isTileTraversable(targetX, targetY)) {
+      return;
+    }
+    const dx = targetX - selectedUnit.pos[0];
+    const dy = targetY - selectedUnit.pos[1];
+    const direction = getDirectionFromOffset(dx, dy, selectedUnit.pos[1]);
     if (direction === null) return;
     const actionId = encodeMove(unitId, direction);
     onSendAction(actionId);
   };
 
+  const handleHexCommand = (dir: HexDirKey) => {
+    const target = getTargetForDir(dir);
+    if (!target) return;
+    executeActionAtTarget(target);
+  };
+
   const handleVerticalCommand = (direction: 'UP' | 'DOWN') => {
-    if (!selectedUnit || selectedUnitId === null) return;
     const target = getVerticalTarget(direction);
     if (!target) return;
-    const occupant = state.units.find(
-      (unit) => unit.pos[0] === target[0] && unit.pos[1] === target[1]
-    );
-    const unitId = selectedUnit.id ?? selectedUnitId ?? 0;
-    if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
-      return;
-    }
-    if (occupant && occupant.owner !== HUMAN_PLAYER_ID) {
-      const actionId = encodeAttack(unitId, target);
-      onSendAction(actionId);
-      return;
-    }
-    const moveDirection = direction === 'UP' ? Direction.UP : Direction.DOWN;
-    const actionId = encodeMove(unitId, moveDirection);
-    onSendAction(actionId);
+    executeActionAtTarget(target);
   };
+
+  const handleMoveToCell = (target: MoveTarget) => {
+    executeActionAtTarget([target.x, target.y]);
+  };
+
+  const moveTargets = useMemo<MoveTarget[]>(() => {
+    if (!selectedUnit) return [];
+
+    const targets: MoveTarget[] = [];
+    const collectTarget = (target: [number, number] | null) => {
+      if (!target) return;
+      const [targetX, targetY] = target;
+      if (!isWithinBounds(targetX, targetY)) return;
+      const occupant = getUnitAt(targetX, targetY);
+      if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
+        return;
+      }
+      if (occupant && occupant.owner !== HUMAN_PLAYER_ID) {
+        targets.push({ x: targetX, y: targetY, type: 'attack' });
+        return;
+      }
+      if (!isTileTraversable(targetX, targetY)) {
+        return;
+      }
+      const dx = targetX - selectedUnit.pos[0];
+      const dy = targetY - selectedUnit.pos[1];
+      const direction = getDirectionFromOffset(dx, dy, selectedUnit.pos[1]);
+      if (direction !== null) {
+        targets.push({ x: targetX, y: targetY, type: 'move' });
+      }
+    };
+
+    (['NW', 'NE', 'W', 'E', 'SW', 'SE'] as HexDirKey[]).forEach((dir) =>
+      collectTarget(getTargetForDir(dir))
+    );
+    (['UP', 'DOWN'] as const).forEach((direction) =>
+      collectTarget(getVerticalTarget(direction))
+    );
+    return targets;
+  }, [
+    selectedUnit,
+    boardHeight,
+    boardWidth,
+    state.units,
+    state.terrain,
+  ]);
 
   const turnProgress = Math.min(
     100,
@@ -225,6 +297,8 @@ export function LiveGameView({
                 }
               }
             }}
+            moveTargets={moveTargets}
+            onSelectMoveTarget={handleMoveToCell}
           />
         </div>
 

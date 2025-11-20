@@ -20,6 +20,7 @@ def state_to_dict(state: GameState) -> dict:
     terrain = np.array(state.terrain, copy=True).tolist()
     city_owner = np.array(state.city_owner, copy=True).tolist()
     city_level = np.array(state.city_level, copy=True).tolist()
+    city_population = np.array(state.city_population, copy=True).tolist()
     
     # Extraire uniquement les unités actives
     active_units = []
@@ -48,6 +49,7 @@ def state_to_dict(state: GameState) -> dict:
     current_player = int(np.asarray(state.current_player).item())
     turn = int(np.asarray(state.turn).item())
     done = bool(np.asarray(state.done).item())
+    player_stars = np.array(state.player_stars, copy=True).tolist()
     
     # Métadonnées de configuration
     config = {
@@ -61,10 +63,11 @@ def state_to_dict(state: GameState) -> dict:
         "terrain": terrain,
         "city_owner": city_owner,
         "city_level": city_level,
+        "city_population": city_population,
         "units": active_units,
         "current_player": current_player,
         "turn": turn,
         "done": done,
+        "player_stars": player_stars,
         "config": config,
     }
-

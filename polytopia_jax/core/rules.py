@@ -5,13 +5,21 @@ Phase 0 (MVP) : périmètre fonctionnel
 - Seules les unités ``WARRIOR`` existent, sans promotion ni compétences
   spéciales. Toutes les actions de combat sont donc résolues comme du corps à
   corps.
-- Les villes sont capturées par simple entrée sur la case ; aucune économie,
-  production ou coût de recrutement n'est encore simulé.
+- Les villes sont capturées par simple entrée sur la case.
 - La fin de partie repose uniquement sur l'élimination : dès qu'un joueur ne
   possède plus de capitale (``city_level > 0``), il est retiré et la partie se
   termine lorsqu'il ne reste qu'un propriétaire vivant.
+
+Phase 1 : boucle économique minimale
+------------------------------------
+- Ajout d'une ressource `player_stars` et de la population par ville afin de
+  limiter l'entraînement/les constructions.
+- Les villes génèrent des étoiles en fin de tour selon leur niveau.
+- Les bâtiments basiques (ferme, mine, hutte) augmentent la population d'une
+  ville et peuvent faire monter son niveau.
 """
 
+from enum import IntEnum
 import jax
 import jax.numpy as jnp
 from .state import GameState, TerrainType, UnitType, NO_OWNER
@@ -27,6 +35,31 @@ UNIT_HP_MAX = jnp.array([0, 10] + [0] * (MAX_UNIT_TYPES - 2), dtype=jnp.int32)  
 UNIT_ATTACK = jnp.array([0, 2] + [0] * (MAX_UNIT_TYPES - 2), dtype=jnp.int32)
 UNIT_DEFENSE = jnp.array([0, 2] + [0] * (MAX_UNIT_TYPES - 2), dtype=jnp.int32)
 UNIT_MOVEMENT = jnp.array([0, 1] + [0] * (MAX_UNIT_TYPES - 2), dtype=jnp.int32)
+UNIT_COST = jnp.array([0, 2] + [0] * (MAX_UNIT_TYPES - 2), dtype=jnp.int32)
+
+
+class BuildingType(IntEnum):
+    """Types de bâtiments basiques."""
+    NONE = 0
+    FARM = 1
+    MINE = 2
+    HUT = 3
+    NUM_TYPES = 4
+
+
+MAX_BUILDING_TYPES = 8
+BUILDING_COST = jnp.array(
+    [0, 3, 4, 2] + [0] * (MAX_BUILDING_TYPES - 4),
+    dtype=jnp.int32,
+)
+BUILDING_POP_GAIN = jnp.array(
+    [0, 1, 2, 1] + [0] * (MAX_BUILDING_TYPES - 4),
+    dtype=jnp.int32,
+)
+
+CITY_LEVEL_POP_THRESHOLDS = jnp.array([0, 1, 3, 5], dtype=jnp.int32)
+CITY_STAR_INCOME_PER_LEVEL = jnp.array([0, 2, 4, 6], dtype=jnp.int32)
+CITY_CAPTURE_POPULATION = CITY_LEVEL_POP_THRESHOLDS[1]
 
 
 def step(state: GameState, action: int) -> GameState:
@@ -65,7 +98,7 @@ def _apply_action(state: GameState, decoded: dict) -> GameState:
             lambda s: _apply_move(s, decoded),  # MOVE
             lambda s: _apply_attack(s, decoded),  # ATTACK
             lambda s: _apply_train_unit(s, decoded),  # TRAIN_UNIT
-            lambda s: s,  # BUILD (pas implémenté dans MVP)
+            lambda s: _apply_build(s, decoded),  # BUILD
             lambda s: s,  # RESEARCH_TECH (pas implémenté dans MVP)
             lambda s: _apply_end_turn(s),  # END_TURN
         ],
@@ -163,6 +196,62 @@ def _perform_move(state: GameState, unit_id: jnp.ndarray, direction: jnp.ndarray
         lambda s: s,
         state
     )
+
+
+def _apply_build(state: GameState, decoded: dict) -> GameState:
+    """Applique la construction d'un bâtiment basique."""
+    building_type_val = decoded.get("unit_type", -1)
+    target_pos_val = decoded.get("target_pos")
+    
+    if target_pos_val is None:
+        return state
+    
+    if isinstance(target_pos_val, tuple):
+        target_x = jnp.array(target_pos_val[0], dtype=jnp.int32)
+        target_y = jnp.array(target_pos_val[1], dtype=jnp.int32)
+    else:
+        target_x = target_pos_val[0] if hasattr(target_pos_val, '__getitem__') else jnp.array(-1, dtype=jnp.int32)
+        target_y = target_pos_val[1] if hasattr(target_pos_val, '__getitem__') and len(target_pos_val) > 1 else jnp.array(-1, dtype=jnp.int32)
+    
+    building_type = jnp.asarray(building_type_val, dtype=jnp.int32) if not isinstance(building_type_val, (int, type(None))) else (jnp.array(building_type_val, dtype=jnp.int32) if building_type_val is not None and building_type_val >= 0 else jnp.array(-1, dtype=jnp.int32))
+    
+    has_building = building_type > 0
+    has_target = (target_x >= 0) & (target_y >= 0)
+    
+    def do_build(state):
+        is_city = state.city_level[target_y, target_x] > 0
+        is_owner = state.city_owner[target_y, target_x] == state.current_player
+        cost = BUILDING_COST[building_type]
+        pop_gain = BUILDING_POP_GAIN[building_type]
+        has_gain = pop_gain > 0
+        has_stars = state.player_stars[state.current_player] >= cost
+        can_build = is_city & is_owner & has_gain & has_stars
+        
+        return jax.lax.cond(
+            can_build,
+            lambda s: _perform_build(s, building_type, target_x, target_y),
+            lambda s: s,
+            state
+        )
+    
+    return jax.lax.cond(
+        has_building & has_target,
+        do_build,
+        lambda s: s,
+        state
+    )
+
+
+def _perform_build(state: GameState, building_type: jnp.ndarray, target_x: jnp.ndarray, target_y: jnp.ndarray) -> GameState:
+    """Applique les effets d'un bâtiment validé."""
+    pop_gain = BUILDING_POP_GAIN[building_type]
+    cost = BUILDING_COST[building_type]
+    new_population_value = state.city_population[target_y, target_x] + pop_gain
+    
+    state = _set_city_population(state, target_x, target_y, new_population_value)
+    new_player_stars = state.player_stars.at[state.current_player].add(-cost)
+    
+    return state.replace(player_stars=new_player_stars)
 
 
 def _apply_attack(state: GameState, decoded: dict) -> GameState:
@@ -310,7 +399,10 @@ def _apply_train_unit(state: GameState, decoded: dict) -> GameState:
         # Vérifier que la position est une ville du joueur actif
         is_city = state.city_level[target_y, target_x] > 0
         is_owner = state.city_owner[target_y, target_x] == state.current_player
-        can_train = is_city & is_owner
+        cost = UNIT_COST[unit_type]
+        has_cost = cost > 0
+        has_stars = state.player_stars[state.current_player] >= cost
+        can_train = is_city & is_owner & has_cost & has_stars
         
         return jax.lax.cond(
             can_train,
@@ -348,6 +440,8 @@ def _perform_train_unit(state: GameState, unit_type: jnp.ndarray, target_x: jnp.
         new_units_owner = state.units_owner.at[free_slot].set(state.current_player)
         new_units_active = state.units_active.at[free_slot].set(True)
         
+        new_player_stars = state.player_stars.at[state.current_player].add(-UNIT_COST[unit_type])
+        
         return state.replace(
             units_type=new_units_type,
             units_pos=new_units_pos,
@@ -355,6 +449,7 @@ def _perform_train_unit(state: GameState, unit_type: jnp.ndarray, target_x: jnp.
             units_owner=new_units_owner,
             units_active=new_units_active,
             units_has_acted=state.units_has_acted.at[free_slot].set(False),
+            player_stars=new_player_stars,
         )
     
     return jax.lax.cond(
@@ -367,6 +462,9 @@ def _perform_train_unit(state: GameState, unit_type: jnp.ndarray, target_x: jnp.
 
 def _apply_end_turn(state: GameState) -> GameState:
     """Termine le tour du joueur actif."""
+    income = _compute_income_for_player(state, state.current_player)
+    new_player_stars = state.player_stars.at[state.current_player].add(income)
+    
     # Passer au joueur suivant
     next_player = (state.current_player + 1) % state.num_players
     
@@ -374,6 +472,7 @@ def _apply_end_turn(state: GameState) -> GameState:
     new_turn = jnp.where(next_player == 0, state.turn + 1, state.turn)
     
     return state.replace(
+        player_stars=new_player_stars,
         current_player=next_player,
         turn=new_turn,
         units_has_acted=jnp.zeros_like(state.units_has_acted),
@@ -397,17 +496,16 @@ def _check_city_capture(state: GameState, unit_id: int, x: int, y: int) -> GameS
     )
     new_city_owner_array = state.city_owner.at[y, x].set(new_city_owner)
     
-    # Réinitialiser le niveau à 1 si c'est une capture
-    new_city_level = jnp.where(
-        should_capture,
-        1,
-        state.city_level[y, x]
-    )
-    new_city_level_array = state.city_level.at[y, x].set(new_city_level)
+    state = state.replace(city_owner=new_city_owner_array)
     
-    state = state.replace(
-        city_owner=new_city_owner_array,
-        city_level=new_city_level_array,
+    def reset_population(s):
+        return _set_city_population(s, x, y, CITY_CAPTURE_POPULATION)
+    
+    state = jax.lax.cond(
+        should_capture,
+        reset_population,
+        lambda s: s,
+        state
     )
     
     # Vérifier la victoire
@@ -488,21 +586,69 @@ def _find_free_unit_slot(state: GameState) -> int:
     return jnp.where(has_free, first_free_idx, -1)
 
 
+def _population_to_level(population: jnp.ndarray) -> jnp.ndarray:
+    """Calcule le niveau d'une ville en fonction de sa population."""
+    thresholds = CITY_LEVEL_POP_THRESHOLDS
+    level_three = thresholds[3]
+    level_two = thresholds[2]
+    level_one = thresholds[1]
+    
+    level = jnp.where(population >= level_three, 3, 0)
+    level = jnp.where((population >= level_two) & (population < level_three), 2, level)
+    level = jnp.where((population >= level_one) & (population < level_two), 1, level)
+    return level
+
+
+def _set_city_population(state: GameState, x: int, y: int, new_population: jnp.ndarray) -> GameState:
+    """Met à jour la population (et donc le niveau) d'une ville."""
+    new_level = _population_to_level(new_population)
+    new_city_population = state.city_population.at[y, x].set(new_population)
+    new_city_level = state.city_level.at[y, x].set(new_level)
+    
+    return state.replace(
+        city_population=new_city_population,
+        city_level=new_city_level,
+    )
+
+
+def _compute_income_for_player(state: GameState, player_id: jnp.ndarray) -> jnp.ndarray:
+    """Calcule le revenu total généré par les villes d'un joueur."""
+    tile_income = CITY_STAR_INCOME_PER_LEVEL[state.city_level]
+    owned_income = jnp.where(state.city_owner == player_id, tile_income, 0)
+    return jnp.sum(owned_income, dtype=jnp.int32)
+
+
+def _min_positive_cost(costs: jnp.ndarray) -> jnp.ndarray:
+    """Retourne le coût positif minimal d'un tableau (ou un entier max sinon)."""
+    max_int = jnp.iinfo(jnp.int32).max
+    positive = jnp.where(costs > 0, costs, max_int)
+    return jnp.min(positive)
+
+
 def legal_actions_mask(state: GameState) -> jnp.ndarray:
-    """Retourne un masque des actions légales.
-    
-    Pour MVP, on retourne un masque simple basé sur les actions possibles.
-    Une implémentation complète devrait vérifier chaque action individuellement.
-    
-    Returns:
-        Masque booléen des actions légales (taille fixe pour MVP)
-    """
-    # Pour MVP, on retourne un masque simple
-    # Une vraie implémentation devrait vérifier chaque action
-    num_actions = 1000  # Taille arbitraire pour MVP
+    """Retourne un masque simplifié des actions légales par type."""
+    num_actions = int(ActionType.NUM_ACTIONS)
     mask = jnp.ones(num_actions, dtype=jnp.bool_)
     
-    # Si la partie est terminée, aucune action n'est légale sauf NO_OP
-    mask = jnp.where(state.done, jnp.zeros_like(mask), mask)
+    stars = state.player_stars[state.current_player]
     
-    return mask
+    train_costs = UNIT_COST[1:]
+    min_train_cost = _min_positive_cost(train_costs)
+    can_train = stars >= min_train_cost
+    mask = mask.at[ActionType.TRAIN_UNIT].set(can_train)
+    
+    build_costs = BUILDING_COST[1:int(BuildingType.NUM_TYPES)]
+    min_build_cost = _min_positive_cost(build_costs)
+    can_build = stars >= min_build_cost
+    mask = mask.at[ActionType.BUILD].set(can_build)
+    
+    def done_mask():
+        base = jnp.zeros_like(mask)
+        return base.at[ActionType.NO_OP].set(True)
+    
+    return jax.lax.cond(
+        state.done,
+        lambda _: done_mask(),
+        lambda _: mask,
+        operand=None
+    )

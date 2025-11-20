@@ -9,12 +9,20 @@ const TILE_HEIGHT_OVER_WIDTH = BASE_TILE_HEIGHT / BASE_TILE_WIDTH; // ≈ 1.088
 // Ajustement empirique : seule ~68 % de la hauteur (la partie « losange ») doit rester visible
 const TOP_OVERLAP_RATIO = 0.68;
 
+export type MoveTarget = {
+  x: number;
+  y: number;
+  type: 'move' | 'attack';
+};
+
 interface BoardProps {
   state: GameStateView;
   cellSize?: number;
   selectedUnitId?: number | null;
   selectableUnitOwner?: number | null;
   onSelectUnit?: (unitId: number, owner: number) => void;
+  moveTargets?: MoveTarget[];
+  onSelectMoveTarget?: (target: MoveTarget) => void;
 }
 
 // Fonction pour calculer la position d'un hexagone en grille hexagonale (pointy-top)
@@ -40,6 +48,8 @@ export function Board({
   selectedUnitId,
   selectableUnitOwner,
   onSelectUnit,
+  moveTargets,
+  onSelectMoveTarget,
 }: BoardProps) {
   const { terrain, cities, units } = state;
   const height = terrain.length;
@@ -95,6 +105,15 @@ export function Board({
     return `${minX} ${minY} ${viewWidth} ${viewHeight}`;
   }, [width, height, tileWidth, tileHeight, verticalPitch]);
 
+  const moveTargetsMap = useMemo(() => {
+    if (!moveTargets || moveTargets.length === 0) return null;
+    const map = new Map<string, MoveTarget>();
+    moveTargets.forEach((target) => {
+      map.set(`${target.x}-${target.y}`, target);
+    });
+    return map;
+  }, [moveTargets]);
+
   return (
     <div className="board-container">
       <svg
@@ -110,6 +129,7 @@ export function Board({
             const [diagX, diagY] = offsetToDiagonalAxes(x, y);
             const imageX = centerX - tileWidth / 2;
             const imageY = centerY - tileHeight / 2;
+            const moveTarget = moveTargetsMap?.get(`${x}-${y}`);
             
             return (
               <g key={`terrain-${x}-${y}`}>
@@ -144,6 +164,44 @@ export function Board({
                 >
                   {diagX},{diagY}
                 </text>
+                {moveTarget && (
+                  <g
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (onSelectMoveTarget) {
+                        onSelectMoveTarget(moveTarget);
+                      }
+                    }}
+                    style={{
+                      cursor: onSelectMoveTarget ? 'pointer' : undefined,
+                    }}
+                  >
+                    <circle
+                      cx={centerX}
+                      cy={centerY}
+                      r={Math.min(tileWidth, tileHeight) * 0.32}
+                      fill={
+                        moveTarget.type === 'attack'
+                          ? 'rgba(239,68,68,0.35)'
+                          : 'rgba(59,130,246,0.35)'
+                      }
+                      stroke={
+                        moveTarget.type === 'attack' ? '#ef4444' : '#3b82f6'
+                      }
+                      strokeWidth={Math.min(tileWidth, tileHeight) * 0.04}
+                    />
+                    <circle
+                      cx={centerX}
+                      cy={centerY}
+                      r={Math.min(tileWidth, tileHeight) * 0.18}
+                      fill={
+                        moveTarget.type === 'attack'
+                          ? 'rgba(239,68,68,0.8)'
+                          : 'rgba(59,130,246,0.8)'
+                      }
+                    />
+                  </g>
+                )}
               </g>
             );
           })

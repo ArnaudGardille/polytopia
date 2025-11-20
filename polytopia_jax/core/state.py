@@ -53,6 +53,7 @@ class GameState:
     # Villes
     city_owner: jnp.ndarray  # [H, W] - propriétaire de chaque ville (-1 si pas de ville)
     city_level: jnp.ndarray  # [H, W] - niveau de chaque ville (0 si pas de ville)
+    city_population: jnp.ndarray  # [H, W] - population stockée pour calculer les niveaux
     
     # Unités
     units_type: jnp.ndarray  # [N_units_max] - types d'unités
@@ -61,6 +62,9 @@ class GameState:
     units_owner: jnp.ndarray  # [N_units_max] - propriétaire de chaque unité
     units_active: jnp.ndarray  # [N_units_max] - booléen indiquant si l'unité existe
     units_has_acted: jnp.ndarray  # [N_units_max] - booléen action effectuée ce tour
+    
+    # Économie
+    player_stars: jnp.ndarray  # [num_players] - ressources économiques de chaque joueur
     
     # État du jeu
     current_player: jnp.ndarray  # joueur actif (scalaire)
@@ -86,12 +90,14 @@ class GameState:
             terrain=jnp.zeros((height, width), dtype=jnp.int32),
             city_owner=jnp.full((height, width), NO_OWNER, dtype=jnp.int32),
             city_level=jnp.zeros((height, width), dtype=jnp.int32),
+            city_population=jnp.zeros((height, width), dtype=jnp.int32),
             units_type=jnp.zeros(max_units, dtype=jnp.int32),
             units_pos=jnp.zeros((max_units, 2), dtype=jnp.int32),
             units_hp=jnp.zeros(max_units, dtype=jnp.int32),
             units_owner=jnp.full(max_units, NO_OWNER, dtype=jnp.int32),
             units_active=jnp.zeros(max_units, dtype=jnp.bool_),
             units_has_acted=jnp.zeros(max_units, dtype=jnp.bool_),
+            player_stars=jnp.zeros(num_players, dtype=jnp.int32),
             current_player=jnp.array(0, dtype=jnp.int32),
             turn=jnp.array(0, dtype=jnp.int32),
             done=jnp.array(False, dtype=jnp.bool_),

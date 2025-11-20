@@ -63,6 +63,8 @@ def sample_replay(temp_replays_dir):
                 "city_owner": [[-1, -1], [-1, 0]],
                 "city_level": [[0, 0], [0, 1]],
                 "units": [{"type": 1, "pos": [0, 0], "hp": 10, "owner": 0}],
+                "city_population": [[0, 0], [0, 1]],
+                "player_stars": [5, 5],
                 "current_player": 0,
                 "turn": 0,
                 "done": False
@@ -72,6 +74,8 @@ def sample_replay(temp_replays_dir):
                 "city_owner": [[-1, -1], [-1, 0]],
                 "city_level": [[0, 0], [0, 1]],
                 "units": [{"type": 1, "pos": [1, 0], "hp": 10, "owner": 0}],
+                "city_population": [[0, 0], [0, 1]],
+                "player_stars": [7, 5],
                 "current_player": 1,
                 "turn": 1,
                 "done": False
@@ -204,7 +208,6 @@ def test_list_replays_ignores_invalid(temp_replays_dir):
     replays = list_replays()
     # Ne devrait pas inclure les fichiers invalides
     assert len(replays) == 0
-
 
 
 

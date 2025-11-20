@@ -3,19 +3,40 @@
 import pytest
 import jax
 import jax.numpy as jnp
-from polytopia_jax.core.rules import step, legal_actions_mask, _check_victory
+from polytopia_jax.core.rules import (
+    step,
+    legal_actions_mask,
+    _check_victory,
+    BuildingType,
+    CITY_CAPTURE_POPULATION,
+    CITY_STAR_INCOME_PER_LEVEL,
+)
 from polytopia_jax.core.state import GameState, UnitType, NO_OWNER
 from polytopia_jax.core.actions import ActionType, Direction, encode_action
 from polytopia_jax.core.init import init_random, GameConfig
 
 
-def _make_empty_state(height: int = 4, width: int = 4, max_units: int = 4) -> GameState:
+def _make_empty_state(height: int = 4, width: int = 4, max_units: int = 4, stars_per_player: int = 0) -> GameState:
     """Crée un GameState vide et déterministe pour les tests unitaires."""
-    return GameState.create_empty(
+    state = GameState.create_empty(
         height=height,
         width=width,
         max_units=max_units,
         num_players=2,
+    )
+    stars = jnp.full((state.num_players,), stars_per_player, dtype=jnp.int32)
+    return state.replace(player_stars=stars)
+
+
+def _with_city(state: GameState, x: int, y: int, owner: int = 0, level: int = 1, population: int = 1) -> GameState:
+    """Ajoute ou met à jour une ville sur une case donnée."""
+    city_owner = state.city_owner.at[y, x].set(owner)
+    city_level = state.city_level.at[y, x].set(level)
+    city_population = state.city_population.at[y, x].set(population)
+    return state.replace(
+        city_owner=city_owner,
+        city_level=city_level,
+        city_population=city_population,
     )
 
 
@@ -254,20 +275,15 @@ def test_city_capture_changes_owner_and_finishes_game():
     units_hp = state.units_hp.at[0].set(10)
     units_active = state.units_active.at[0].set(True)
     
-    city_owner = state.city_owner.at[0, 0].set(0)
-    city_level = state.city_level.at[0, 0].set(1)
-    city_owner = city_owner.at[1, 2].set(1)
-    city_level = city_level.at[1, 2].set(1)
-    
     state = state.replace(
         units_type=units_type,
         units_owner=units_owner,
         units_pos=units_pos,
         units_hp=units_hp,
         units_active=units_active,
-        city_owner=city_owner,
-        city_level=city_level,
     )
+    state = _with_city(state, 0, 0, owner=0, level=1, population=1)
+    state = _with_city(state, 2, 1, owner=1, level=1, population=1)
     
     action = encode_action(
         ActionType.MOVE,
@@ -278,7 +294,50 @@ def test_city_capture_changes_owner_and_finishes_game():
     
     assert new_state.city_owner[1, 2] == 0
     assert new_state.city_level[1, 2] == 1
+    assert new_state.city_population[1, 2] == CITY_CAPTURE_POPULATION
     assert bool(new_state.done.item())
+
+
+def test_train_unit_requires_sufficient_stars():
+    """L'entraînement d'une unité consomme des étoiles."""
+    rich_state = _with_city(_make_empty_state(stars_per_player=2), 1, 1, owner=0, level=1, population=1)
+    action = encode_action(
+        ActionType.TRAIN_UNIT,
+        unit_type=UnitType.WARRIOR,
+        target_pos=(1, 1),
+    )
+    trained_state = step(rich_state, action)
+    assert int(trained_state.player_stars[0]) == 0
+    assert jnp.sum(trained_state.units_active) == 1
+    
+    poor_state = _with_city(_make_empty_state(stars_per_player=1), 1, 1, owner=0, level=1, population=1)
+    blocked_state = step(poor_state, action)
+    assert jnp.sum(blocked_state.units_active) == 0
+    assert int(blocked_state.player_stars[0]) == 1
+
+
+def test_build_increases_population_and_consumes_stars():
+    """Construire un bâtiment augmente la population et facture des étoiles."""
+    state = _with_city(_make_empty_state(stars_per_player=6), 1, 1, owner=0, level=1, population=1)
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.MINE,
+        target_pos=(1, 1),
+    )
+    new_state = step(state, action)
+    assert int(new_state.city_population[1, 1]) == 3  # +2 population
+    assert int(new_state.city_level[1, 1]) == 2  # seuil dépassé
+    assert int(new_state.player_stars[0]) == 2  # 6 - coût 4
+
+
+def test_end_turn_awards_city_income():
+    """Le revenu des villes est ajouté lors de la fin de tour."""
+    state = _with_city(_make_empty_state(stars_per_player=0), 1, 1, owner=0, level=2, population=3)
+    action = encode_action(ActionType.END_TURN)
+    new_state = step(state, action)
+    expected_income = int(CITY_STAR_INCOME_PER_LEVEL[2])
+    assert int(new_state.player_stars[0]) == expected_income
+    assert new_state.current_player == 1
 
 
 def test_step_end_turn():
@@ -333,15 +392,21 @@ def test_end_turn_cycles_players_and_turn_counter():
 
 def test_legal_actions_mask():
     """Test le masque d'actions légales."""
-    key = jax.random.PRNGKey(42)
-    config = GameConfig(height=10, width=10, num_players=2, max_units=20)
-    state = init_random(key, config)
-    
+    state = _with_city(_make_empty_state(stars_per_player=10), 1, 1, owner=0, level=1, population=1)
     mask = legal_actions_mask(state)
     
-    # Le masque devrait être un array booléen
     assert mask.dtype == jnp.bool_
-    assert len(mask) > 0
+    assert mask.shape[0] == int(ActionType.NUM_ACTIONS)
+    assert bool(mask[ActionType.TRAIN_UNIT])
+    assert bool(mask[ActionType.BUILD])
+
+
+def test_legal_actions_mask_blocks_when_no_stars():
+    """TRAIN_UNIT et BUILD deviennent illégaux sans ressources."""
+    state = _with_city(_make_empty_state(stars_per_player=0), 1, 1, owner=0, level=1, population=1)
+    mask = legal_actions_mask(state)
+    assert not bool(mask[ActionType.TRAIN_UNIT])
+    assert not bool(mask[ActionType.BUILD])
 
 
 def test_legal_actions_mask_game_over():
@@ -355,8 +420,10 @@ def test_legal_actions_mask_game_over():
     
     mask = legal_actions_mask(state)
     
-    # Toutes les actions devraient être invalides
-    assert jnp.all(~mask)
+    # Seul NO_OP doit rester possible
+    assert bool(mask[ActionType.NO_OP])
+    remaining = mask.at[ActionType.NO_OP].set(False)
+    assert jnp.all(~remaining)
 
 
 def test_check_victory():

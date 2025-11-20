@@ -47,6 +47,7 @@ def test_create_empty_state():
     assert state.terrain.shape == (height, width)
     assert state.city_owner.shape == (height, width)
     assert state.city_level.shape == (height, width)
+    assert state.city_population.shape == (height, width)
     assert state.units_type.shape == (max_units,)
     assert state.units_pos.shape == (max_units, 2)
     assert state.units_hp.shape == (max_units,)
@@ -63,6 +64,9 @@ def test_create_empty_state():
     assert state.current_player == 0
     assert state.turn == 0
     assert state.done == False
+    assert state.player_stars.shape == (num_players,)
+    assert jnp.all(state.player_stars == 0)
+    assert jnp.all(state.city_population == 0)
 
 
 def test_state_jit_compatibility():
@@ -100,6 +104,7 @@ def test_state_types():
     assert isinstance(state.terrain, jnp.ndarray)
     assert isinstance(state.city_owner, jnp.ndarray)
     assert isinstance(state.city_level, jnp.ndarray)
+    assert isinstance(state.city_population, jnp.ndarray)
     assert isinstance(state.units_type, jnp.ndarray)
     assert isinstance(state.units_pos, jnp.ndarray)
     assert isinstance(state.units_hp, jnp.ndarray)
@@ -108,7 +113,7 @@ def test_state_types():
     assert isinstance(state.current_player, jnp.ndarray)
     assert isinstance(state.turn, jnp.ndarray)
     assert isinstance(state.done, jnp.ndarray)
-
+    assert isinstance(state.player_stars, jnp.ndarray)
 
 
 

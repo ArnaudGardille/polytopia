@@ -47,6 +47,8 @@ class GameStateView(BaseModel):
     terrain: List[List[int]] = Field(..., description="Grille de terrain [H, W]")
     cities: List[CityView] = Field(default_factory=list, description="Liste des villes")
     units: List[UnitView] = Field(default_factory=list, description="Liste des unités")
+    city_population: List[List[int]] = Field(default_factory=list, description="Population de chaque case ville")
+    player_stars: List[int] = Field(default_factory=list, description="Ressources économiques par joueur")
     current_player: int = Field(..., description="Joueur actif")
     turn: int = Field(..., description="Numéro de tour")
     done: bool = Field(..., description="Partie terminée")
@@ -60,6 +62,7 @@ class GameStateView(BaseModel):
         cities = []
         city_owner = state.get("city_owner", [])
         city_level = state.get("city_level", [])
+        city_population = state.get("city_population", [])
         
         if city_owner and city_level:
             height = len(city_owner)
@@ -88,10 +91,14 @@ class GameStateView(BaseModel):
                 owner=unit["owner"]
             ))
         
+        player_stars = state.get("player_stars", [])
+        
         return cls(
             terrain=terrain,
             cities=cities,
             units=units,
+            city_population=city_population,
+            player_stars=player_stars,
             current_player=state.get("current_player", 0),
             turn=state.get("turn", 0),
             done=state.get("done", False)
@@ -103,6 +110,8 @@ class GameStateView(BaseModel):
                 "terrain": [[0, 1], [1, 0]],
                 "cities": [{"owner": 0, "level": 1, "pos": [0, 0]}],
                 "units": [{"type": 1, "pos": [1, 1], "hp": 10, "owner": 0}],
+                "city_population": [[0, 0], [0, 1]],
+                "player_stars": [5, 5],
                 "current_player": 0,
                 "turn": 1,
                 "done": False
@@ -243,4 +252,3 @@ class LiveGameResponse(BaseModel):
     opponents: int = Field(..., description="Nombre d'adversaires IA")
     difficulty: str = Field(..., description="Difficulté choisie")
     state: GameStateView = Field(..., description="État courant de la partie")
-

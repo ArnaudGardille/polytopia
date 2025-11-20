@@ -6,6 +6,9 @@ import jax.numpy as jnp
 from .state import GameState, TerrainType, UnitType, NO_OWNER
 from .actions import Direction, get_action_direction_delta
 
+STARTING_PLAYER_STARS = 5
+INITIAL_CITY_POPULATION = 1
+
 
 class GameConfig(NamedTuple):
     """Configuration pour la génération d'un état initial."""
@@ -47,6 +50,15 @@ def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
     
     # Initialiser les unités de départ
     state = _init_starting_units(state, unit_key, config)
+    
+    # Donne des étoiles de départ à chaque joueur
+    state = state.replace(
+        player_stars=jnp.full(
+            (config.num_players,),
+            STARTING_PLAYER_STARS,
+            dtype=jnp.int32,
+        )
+    )
     
     return state
 
@@ -95,6 +107,7 @@ def _place_capitals(
     
     city_owner = state.city_owner.copy()
     city_level = state.city_level.copy()
+    city_population = state.city_population.copy()
     
     # Calculer les positions des capitales
     # Joueur 0 : coin supérieur gauche
@@ -121,10 +134,15 @@ def _place_capitals(
         if x < config.width and y < config.height:
             city_owner = city_owner.at[y, x].set(player_id)
             city_level = city_level.at[y, x].set(1)
+            city_population = city_population.at[y, x].set(INITIAL_CITY_POPULATION)
             # S'assurer que la case est une plaine
             state = state.replace(terrain=state.terrain.at[y, x].set(TerrainType.PLAIN))
     
-    return state.replace(city_owner=city_owner, city_level=city_level)
+    return state.replace(
+        city_owner=city_owner,
+        city_level=city_level,
+        city_population=city_population,
+    )
 
 
 def _init_starting_units(
@@ -175,4 +193,3 @@ def _init_starting_units(
         units_owner=units_owner,
         units_active=units_active,
     )
-

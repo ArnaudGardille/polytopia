@@ -245,6 +245,11 @@ Cette section détaille les étapes proposées pour rapprocher progressivement l
    - Ajouter la notion d'étoiles et de population dans `GameState`, incrémenter le revenu des villes lors de `_apply_end_turn`, et déduire les coûts lorsque `TRAIN_UNIT`/`BUILD` sont déclenchées.  
    - Implémenter quelques bâtiments basiques (ferme, mine, hutte) depuis `polytopia_jax/core/rules.py` pour modifier la population et donc les niveaux de villes.  
    - Construire un masque d'actions légales qui bloque toute action non finançable.
+   
+   **État actuel (Phase 1)**  
+   - Chaque joueur possède une réserve `player_stars` initialisée à 5 et alimentée par les capitales (`2/4/6` ★ par niveau lors de `_apply_end_turn`).  
+   - Les villes stockent `city_population` : capturer ou construire (ferme/mine/hutte) ajuste la population puis le `city_level` associé.  
+   - `TRAIN_UNIT` et `BUILD` consomment automatiquement les ★ correspondantes et sont bloqués par le masque d'actions tant que le joueur n'a pas le budget requis.
 
 3. **Phase 2 – Progression des villes et scoring**  
    - Faire évoluer `city_level` en fonction de la population, débloquer les bonus d'étoiles et introduire les améliorations de ville (mur, port, marché) avec leurs effets économiques.  

@@ -3,7 +3,7 @@
 import pytest
 import jax
 import jax.numpy as jnp
-from polytopia_jax.core.init import init_random, GameConfig
+from polytopia_jax.core.init import init_random, GameConfig, STARTING_PLAYER_STARS, INITIAL_CITY_POPULATION
 from polytopia_jax.core.state import (
     TerrainType,
     UnitType,
@@ -31,6 +31,10 @@ def test_init_random_basic():
     # Vérifier qu'il y a des unités
     num_units = jnp.sum(state.units_active)
     assert num_units >= config.num_players  # Au moins une unité par joueur
+    
+    # Vérifier l'économie de départ
+    assert state.player_stars.shape == (config.num_players,)
+    assert jnp.all(state.player_stars == STARTING_PLAYER_STARS)
 
 
 def test_init_random_reproducibility():
@@ -81,6 +85,10 @@ def test_init_random_capitals_placed():
             (state.city_owner == player_id) & (state.city_level > 0)
         )
         assert player_capitals >= 1
+    
+    # Les capitales doivent avoir une population initiale
+    capital_pop = state.city_population[state.city_level > 0]
+    assert jnp.all(capital_pop == INITIAL_CITY_POPULATION)
 
 
 def test_init_random_starting_units():
@@ -159,4 +167,3 @@ def test_init_random_terrain_generation():
     capital_mask = state.city_level > 0
     capital_terrains = state.terrain[capital_mask]
     assert jnp.all(capital_terrains == TerrainType.PLAIN)
-
