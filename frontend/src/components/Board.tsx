@@ -26,6 +26,14 @@ function hexToPixel(x: number, y: number, tileWidth: number): [number, number] {
   return [pixelX, pixelY];
 }
 
+// Conversion offset odd-r vers coordonnées diagonales (cube axes x et y)
+function offsetToDiagonalAxes(x: number, y: number): [number, number] {
+  const cubeX = x - (y - (y & 1)) / 2;
+  const cubeZ = y;
+  const cubeY = -cubeX - cubeZ;
+  return [cubeX, cubeY];
+}
+
 export function Board({
   state,
   cellSize: propCellSize,
@@ -99,6 +107,7 @@ export function Board({
           row.map((terrainType, x) => {
             const terrainIcon = getTerrainIcon(terrainType);
             const [centerX, centerY] = hexToPixel(x, y, tileWidth);
+            const [diagX, diagY] = offsetToDiagonalAxes(x, y);
             const imageX = centerX - tileWidth / 2;
             const imageY = centerY - tileHeight / 2;
             
@@ -120,6 +129,21 @@ export function Board({
                     }}
                   />
                 )}
+                {/* Affichage des coordonnées pour debug */}
+                <text
+                  x={centerX}
+                  y={centerY}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="white"
+                  fontSize={Math.min(tileWidth, tileHeight) * 0.15}
+                  fontWeight="bold"
+                  stroke="black"
+                  strokeWidth={Math.min(tileWidth, tileHeight) * 0.02}
+                  paintOrder="stroke"
+                >
+                  {diagX},{diagY}
+                </text>
               </g>
             );
           })

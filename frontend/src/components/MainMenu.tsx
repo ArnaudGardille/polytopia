@@ -2,16 +2,21 @@ import type { Screen } from '../types';
 
 interface MainMenuProps {
   onNavigate: (screen: Screen) => void;
+  onResumeGame: () => void;
+  canResume: boolean;
+  isResuming?: boolean;
+  resumeError?: string | null;
 }
 
-export function MainMenu({ onNavigate }: MainMenuProps) {
+export function MainMenu({
+  onNavigate,
+  onResumeGame,
+  canResume,
+  isResuming = false,
+  resumeError,
+}: MainMenuProps) {
   const handleNewGame = () => {
     onNavigate('modeSelection');
-  };
-
-  const handleResumeGame = () => {
-    // TODO: Implémenter la reprise de partie
-    console.log('Resume game');
   };
 
   const handleMultiplayer = () => {
@@ -87,10 +92,15 @@ export function MainMenu({ onNavigate }: MainMenuProps) {
               NEW GAME
             </button>
             <button
-              onClick={handleResumeGame}
-              className="bg-blue-400 hover:bg-blue-500 text-white font-semibold py-4 px-8 rounded-xl text-lg transition-all transform hover:scale-105 shadow-lg"
+              onClick={onResumeGame}
+              disabled={!canResume || isResuming}
+              className={`bg-blue-400 text-white font-semibold py-4 px-8 rounded-xl text-lg transition-all transform shadow-lg ${
+                !canResume || isResuming
+                  ? 'opacity-60 cursor-not-allowed'
+                  : 'hover:bg-blue-500 hover:scale-105'
+              }`}
             >
-              RESUME GAME
+              {isResuming ? 'RESUME EN COURS...' : 'RESUME GAME'}
             </button>
             <button
               onClick={handleMultiplayer}
@@ -104,6 +114,11 @@ export function MainMenu({ onNavigate }: MainMenuProps) {
             >
               REPLAY
             </button>
+            {resumeError && (
+              <div className="mt-2 text-center text-sm font-semibold text-red-800 bg-white/70 rounded-lg py-2 px-3">
+                {resumeError}
+              </div>
+            )}
           </div>
         </div>
 

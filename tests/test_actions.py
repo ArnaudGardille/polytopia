@@ -1,4 +1,4 @@
-"""Tests pour core/actions.py."""
+"""Tests pour polytopia_jax/core/actions.py."""
 
 import pytest
 import jax.numpy as jnp
@@ -78,7 +78,7 @@ def test_directions():
     # Vérifier les valeurs spécifiques
     assert jnp.array_equal(
         get_action_direction_delta(Direction.UP),
-        jnp.array([0, -1])
+        jnp.array([0, -2])
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.UP_RIGHT),
@@ -94,7 +94,7 @@ def test_directions():
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.DOWN),
-        jnp.array([0, 1])
+        jnp.array([0, 2])
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.DOWN_LEFT),
@@ -150,11 +150,11 @@ def test_direction_delta_array():
     
     # Vérifier chaque direction
     expected = jnp.array([
-        [0, -1],   # UP
+        [0, -2],   # UP
         [1, -1],   # UP_RIGHT
         [1, 0],    # RIGHT
         [1, 1],    # DOWN_RIGHT
-        [0, 1],    # DOWN
+        [0, 2],    # DOWN
         [-1, 1],   # DOWN_LEFT
         [-1, 0],   # LEFT
         [-1, -1],  # UP_LEFT

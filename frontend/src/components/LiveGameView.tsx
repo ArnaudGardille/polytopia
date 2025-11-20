@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { GameStateView, LiveGameStateResponse } from '../types';
+import type { LiveGameStateResponse } from '../types';
 import { Board } from './Board';
 import {
   Direction,
@@ -77,13 +77,7 @@ export function LiveGameView({
     return HEX_OFFSETS[parity][dir] ?? null;
   };
 
-  const resolveDirKey = (button: string, row: number): HexDirKey | null => {
-    if (button === 'UP') {
-      return row % 2 === 0 ? 'NE' : 'NW';
-    }
-    if (button === 'DOWN') {
-      return row % 2 === 0 ? 'SE' : 'SW';
-    }
+  const resolveDirKey = (button: string): HexDirKey | null => {
     if (
       button === 'NW' ||
       button === 'NE' ||
@@ -104,6 +98,26 @@ export function LiveGameView({
     const target: [number, number] = [
       selectedUnit.pos[0] + offset[0],
       selectedUnit.pos[1] + offset[1],
+    ];
+    if (
+      target[0] < 0 ||
+      target[0] >= boardWidth ||
+      target[1] < 0 ||
+      target[1] >= boardHeight
+    ) {
+      return null;
+    }
+    return target;
+  };
+
+  const getVerticalTarget = (
+    direction: 'UP' | 'DOWN'
+  ): [number, number] | null => {
+    if (!selectedUnit) return null;
+    const deltaY = direction === 'UP' ? -2 : 2;
+    const target: [number, number] = [
+      selectedUnit.pos[0],
+      selectedUnit.pos[1] + deltaY,
     ];
     if (
       target[0] < 0 ||
@@ -137,6 +151,27 @@ export function LiveGameView({
     const direction = directionFromDelta(offset);
     if (direction === null) return;
     const actionId = encodeMove(unitId, direction);
+    onSendAction(actionId);
+  };
+
+  const handleVerticalCommand = (direction: 'UP' | 'DOWN') => {
+    if (!selectedUnit || selectedUnitId === null) return;
+    const target = getVerticalTarget(direction);
+    if (!target) return;
+    const occupant = state.units.find(
+      (unit) => unit.pos[0] === target[0] && unit.pos[1] === target[1]
+    );
+    const unitId = selectedUnit.id ?? selectedUnitId ?? 0;
+    if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
+      return;
+    }
+    if (occupant && occupant.owner !== HUMAN_PLAYER_ID) {
+      const actionId = encodeAttack(unitId, target);
+      onSendAction(actionId);
+      return;
+    }
+    const moveDirection = direction === 'UP' ? Direction.UP : Direction.DOWN;
+    const actionId = encodeMove(unitId, moveDirection);
     onSendAction(actionId);
   };
 
@@ -267,11 +302,11 @@ export function LiveGameView({
                       </div>
                     );
                   }
-                  const resolvedKey = resolveDirKey(
-                    button,
-                    selectedUnit?.pos[1] ?? 0
-                  );
-                  if (!resolvedKey) {
+                  const isVerticalButton = button === 'UP' || button === 'DOWN';
+                  const resolvedKey = !isVerticalButton
+                    ? resolveDirKey(button)
+                    : null;
+                  if (!isVerticalButton && !resolvedKey) {
                     return (
                       <div
                         key={`placeholder-${rowIndex}-${idx}`}
@@ -281,18 +316,21 @@ export function LiveGameView({
                       </div>
                     );
                   }
-                  const target = getTargetForDir(resolvedKey);
-                  const occupant =
-                    target &&
-                    state.units.find(
-                      (unit) =>
-                        unit.pos[0] === target[0] && unit.pos[1] === target[1]
-                    );
+                  const target = isVerticalButton
+                    ? getVerticalTarget(button as 'UP' | 'DOWN')
+                    : resolvedKey
+                    ? getTargetForDir(resolvedKey)
+                    : null;
+                  const occupant = target
+                    ? state.units.find(
+                        (unit) =>
+                          unit.pos[0] === target[0] && unit.pos[1] === target[1]
+                      )
+                    : undefined;
+                  const isFriendlyOccupant =
+                    !!occupant && occupant.owner === HUMAN_PLAYER_ID;
                   const disabled =
-                    !selectedUnit ||
-                    !target ||
-                    isBusy ||
-                    (occupant && occupant.owner === HUMAN_PLAYER_ID);
+                    !selectedUnit || !target || isBusy || isFriendlyOccupant;
                   const label =
                     button === 'UP'
                       ? '↑'
@@ -309,10 +347,18 @@ export function LiveGameView({
                       : button === 'SW'
                       ? '↙'
                       : '↘';
+                  const handleClick = () => {
+                    if (disabled || !target) return;
+                    if (isVerticalButton) {
+                      handleVerticalCommand(button as 'UP' | 'DOWN');
+                    } else if (resolvedKey) {
+                      handleHexCommand(resolvedKey);
+                    }
+                  };
                   return (
                     <button
                       key={`${button}-${rowIndex}-${idx}`}
-                      onClick={() => handleHexCommand(resolvedKey)}
+                      onClick={handleClick}
                       disabled={disabled}
                       className="px-3 py-2 bg-blue-500/80 hover:bg-blue-500 rounded-lg disabled:opacity-40"
                       title={

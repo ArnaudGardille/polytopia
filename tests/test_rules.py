@@ -1,4 +1,4 @@
-"""Tests pour core/rules.py."""
+"""Tests pour polytopia_jax/core/rules.py."""
 
 import pytest
 import jax

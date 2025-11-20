@@ -25,6 +25,8 @@ import type {
 } from './types';
 import './styles/App.css';
 
+const LAST_LIVE_GAME_KEY = 'polytopia:lastLiveGameId';
+
 function App() {
   // Navigation
   const [currentScreen, setCurrentScreen] = useState<Screen>('mainMenu');
@@ -46,6 +48,31 @@ function App() {
   const [liveStartError, setLiveStartError] = useState<string | null>(null);
   const [liveRuntimeError, setLiveRuntimeError] = useState<string | null>(null);
   const [isLiveBusy, setIsLiveBusy] = useState(false);
+  const [lastLiveGameId, setLastLiveGameId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [isResumingLastGame, setIsResumingLastGame] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedId = window.localStorage.getItem(LAST_LIVE_GAME_KEY);
+    if (storedId) {
+      setLastLiveGameId(storedId);
+    }
+  }, []);
+
+  const persistLastLiveGameId = useCallback((gameId: string) => {
+    setLastLiveGameId(gameId);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LAST_LIVE_GAME_KEY, gameId);
+    }
+  }, []);
+
+  const clearLastLiveGameId = useCallback(() => {
+    setLastLiveGameId(null);
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(LAST_LIVE_GAME_KEY);
+    }
+  }, []);
 
   // Charger la liste des replays (seulement pour l'écran game)
   useEffect(() => {
@@ -165,8 +192,10 @@ function App() {
         difficulty: config.difficulty,
       });
       setLiveSession(session);
+       persistLastLiveGameId(session.gameId);
       setLiveSelectedUnitId(null);
       setLiveRuntimeError(null);
+      setResumeError(null);
       setCurrentScreen('liveGame');
     } catch (err) {
       const message =
@@ -217,6 +246,32 @@ function App() {
     await withLiveRequest(() => getLiveGameState(liveSession.gameId));
   };
 
+  const handleResumeLastGame = async () => {
+    if (!lastLiveGameId) {
+      setResumeError("Aucune partie à reprendre.");
+      return;
+    }
+    setIsResumingLastGame(true);
+    setResumeError(null);
+    try {
+      const session = await getLiveGameState(lastLiveGameId);
+      setLiveSession(session);
+      setLiveSelectedUnitId(null);
+      setLiveRuntimeError(null);
+      setCurrentScreen('liveGame');
+      persistLastLiveGameId(session.gameId);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Impossible de reprendre la dernière partie.";
+      setResumeError(message);
+      clearLastLiveGameId();
+    } finally {
+      setIsResumingLastGame(false);
+    }
+  };
+
   const handleExitLiveGame = () => {
     setLiveSession(null);
     setLiveSelectedUnitId(null);
@@ -226,7 +281,15 @@ function App() {
 
   // Rendu conditionnel selon l'écran
   if (currentScreen === 'mainMenu') {
-    return <MainMenu onNavigate={handleNavigate} />;
+    return (
+      <MainMenu
+        onNavigate={handleNavigate}
+        onResumeGame={handleResumeLastGame}
+        canResume={Boolean(lastLiveGameId)}
+        isResuming={isResumingLastGame}
+        resumeError={resumeError}
+      />
+    );
   }
 
   if (currentScreen === 'modeSelection') {
@@ -245,7 +308,9 @@ function App() {
     return (
       <GameSetupMenu
         mode={selectedMode}
-        onNavigate={handleNavigate}
+        onNavigate={(screen, config) =>
+          handleNavigate(screen, selectedMode, config)
+        }
         {...startProps}
       />
     );

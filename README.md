@@ -15,9 +15,9 @@ L'objectif est de fournir :
 - Reproduire un ensemble de mécaniques proches de Polytopia : cartes en grille, villes, unités, production, combat, tours alternés.
 - Permettre la simulation en masse de parties pour l'apprentissage par renforcement.
 - Garantir une séparation stricte entre :
-  - `core` (simulation pure en JAX),
+  - `polytopia_jax/core` (simulation pure en JAX),
   - `rl` (wrappers Gymnasium / PettingZoo),
-  - `web` (API FastAPI),
+  - `polytopia_jax/web` (API FastAPI),
   - `frontend` (visualisation React + PixiJS).
 
 ---
@@ -26,24 +26,21 @@ L'objectif est de fournir :
 
 ```
 polytopia-jax/
-├─ core/
-│  ├─ state.py           # Définition de GameState (pytree JAX)
-│  ├─ rules.py           # Déplacements, combats, production, capture
-│  ├─ actions.py         # Encodage des actions discrètes
-│  ├─ init.py            # Génération des états initiaux
-│  └─ reward.py          # Fonctions de récompense
+├─ polytopia_jax/
+│  ├─ core/
+│  │  ├─ state.py        # Définition de GameState (pytree JAX)
+│  │  ├─ rules.py        # Déplacements, combats, production, capture
+│  │  ├─ actions.py      # Encodage des actions discrètes
+│  │  ├─ init.py         # Génération des états initiaux
+│  │  └─ reward.py       # Fonctions de récompense
+│  │
+│  └─ web/
+│     ├─ api.py          # Backend FastAPI
+│     ├─ models.py       # Conversion GameState → GameStateView
+│     └─ replay_store.py # Lecture et écriture des replays
 │
-├─ rl/
-│  ├─ gym_env.py         # Wrapper Gymnasium
-│  └─ pettingzoo_env.py  # Wrapper PettingZoo
-│
-├─ training/
-│  └─ example_dqn.py     # Exemple d'entraînement (à compléter)
-│
-├─ web/
-│  ├─ api.py             # Backend FastAPI
-│  ├─ models.py          # Conversion GameState → GameStateView
-│  └─ replay_store.py    # Lecture et écriture des replays
+├─ rl/ (à venir)
+├─ training/ (à venir)
 │
 ├─ frontend/             # Interface web (React + TypeScript)
 │  ├─ src/
@@ -68,7 +65,7 @@ polytopia-jax/
 
 ---
 
-## 3. Cœur de simulation (module `core/`)
+## 3. Cœur de simulation (module `polytopia_jax/core/`)
 
 Le moteur est écrit en JAX. L'état du jeu est représenté sous forme de pytree statique afin de permettre jit et vmap.
 
@@ -95,7 +92,7 @@ class GameState:
 - `step(state, action)` : transition d'état pure et JIT-compatible.
 - `legal_actions_mask(state)` : masque des actions valides.
 
-Aucune fonction dans `core/` ne doit interagir avec l'extérieur (pas d'IO, pas d'état mutable).
+Aucune fonction dans `polytopia_jax/core/` ne doit interagir avec l'extérieur (pas d'IO, pas d'état mutable).
 
 ---
 
@@ -121,7 +118,7 @@ Permet le self-play et les agents indépendants. Support des modes AEC et Parall
 
 ---
 
-## 5. Backend web (`web/`)
+## 5. Backend web (`polytopia_jax/web/`)
 
 Backend FastAPI exposant plusieurs endpoints :
 
@@ -233,7 +230,7 @@ npm run dev
 Cette section détaille les étapes proposées pour rapprocher progressivement la simulation d'une partie complète de Polytopia. Chaque phase peut être développée et testée indépendamment afin de conserver un moteur fonctionnel en permanence.
 
 1. **Phase 0 – Stabiliser l'existant**  
-   - Documenter explicitement le périmètre MVP (guerrier unique, capture directe, victoire par élimination) dans `core/state.py` et `core/rules.py`.  
+   - Documenter explicitement le périmètre MVP (guerrier unique, capture directe, victoire par élimination) dans `polytopia_jax/core/state.py` et `polytopia_jax/core/rules.py`.  
    - Étendre la suite de tests (`tests/test_rules.py`) pour couvrir mouvement, attaque, capture et fin de tour afin de verrouiller le comportement actuel avant d'ajouter de nouvelles mécaniques.  
    - Mettre à jour ce README avec les limitations connues afin que les équipes RL/web sachent exactement ce qui est supporté.
    
@@ -246,7 +243,7 @@ Cette section détaille les étapes proposées pour rapprocher progressivement l
 
 2. **Phase 1 – Boucle économique minimale**  
    - Ajouter la notion d'étoiles et de population dans `GameState`, incrémenter le revenu des villes lors de `_apply_end_turn`, et déduire les coûts lorsque `TRAIN_UNIT`/`BUILD` sont déclenchées.  
-   - Implémenter quelques bâtiments basiques (ferme, mine, hutte) depuis `core/rules.py` pour modifier la population et donc les niveaux de villes.  
+   - Implémenter quelques bâtiments basiques (ferme, mine, hutte) depuis `polytopia_jax/core/rules.py` pour modifier la population et donc les niveaux de villes.  
    - Construire un masque d'actions légales qui bloque toute action non finançable.
 
 3. **Phase 2 – Progression des villes et scoring**  
@@ -257,7 +254,7 @@ Cette section détaille les étapes proposées pour rapprocher progressivement l
 4. **Phase 3 – Arbre technologique**  
    - Définir une structure de technologies avec coûts croissants et dépendances.  
    - Connecter chaque techno aux unités/bâtiments/terrains qu'elle déverrouille (Climbing, Sailing, Roads...).  
-   - Étendre `core/actions.py` pour encoder la sélection d'une technologie et mettre à jour `legal_actions_mask`.
+   - Étendre `polytopia_jax/core/actions.py` pour encoder la sélection d'une technologie et mettre à jour `legal_actions_mask`.
 
 5. **Phase 4 – Diversité d'unités terrestres**  
    - Étendre `UnitType` + tables de stats pour inclure Défenseur, Archer, Cavalier, Mind Bender, Catapulte, etc., en respectant les compétences décrites dans `Polytopia.md`.  
