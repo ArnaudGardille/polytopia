@@ -62,9 +62,13 @@ def sample_replay(temp_replays_dir):
                 "terrain": [[0, 0], [0, 0]],
                 "city_owner": [[-1, -1], [-1, 0]],
                 "city_level": [[0, 0], [0, 1]],
-                "units": [{"type": 1, "pos": [0, 0], "hp": 10, "owner": 0}],
+                "city_has_port": [[0, 0], [0, 0]],
+                "units": [{"type": 1, "pos": [0, 0], "hp": 10, "owner": 0, "payload_type": 1}],
                 "city_population": [[0, 0], [0, 1]],
                 "player_stars": [5, 5],
+                "player_score": [110, 80],
+                "score_breakdown": {"territory": [100, 0], "population": [5, 5], "military": [5, 5], "economy": [0, 70]},
+                "player_techs": [[1, 0, 0, 0], [0, 0, 0, 0]],
                 "current_player": 0,
                 "turn": 0,
                 "done": False
@@ -73,9 +77,13 @@ def sample_replay(temp_replays_dir):
                 "terrain": [[0, 0], [0, 0]],
                 "city_owner": [[-1, -1], [-1, 0]],
                 "city_level": [[0, 0], [0, 1]],
-                "units": [{"type": 1, "pos": [1, 0], "hp": 10, "owner": 0}],
+                "city_has_port": [[0, 0], [0, 0]],
+                "units": [{"type": 1, "pos": [1, 0], "hp": 10, "owner": 0, "payload_type": 1}],
                 "city_population": [[0, 0], [0, 1]],
                 "player_stars": [7, 5],
+                "player_score": [130, 85],
+                "score_breakdown": {"territory": [100, 0], "population": [10, 5], "military": [10, 5], "economy": [10, 75]},
+                "player_techs": [[1, 1, 0, 0], [0, 0, 0, 0]],
                 "current_player": 1,
                 "turn": 1,
                 "done": False
@@ -208,6 +216,3 @@ def test_list_replays_ignores_invalid(temp_replays_dir):
     replays = list_replays()
     # Ne devrait pas inclure les fichiers invalides
     assert len(replays) == 0
-
-
-

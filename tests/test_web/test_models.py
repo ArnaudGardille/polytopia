@@ -52,7 +52,11 @@ def test_game_state_view():
         cities=[CityView(owner=0, level=1, pos=[0, 0])],
         units=[UnitView(type=1, pos=[1, 1], hp=10, owner=0)],
         city_population=[[0, 0], [0, 1]],
+        city_ports=[[0, 0], [0, 1]],
         player_stars=[5, 3],
+        player_score=[120, 80],
+        score_breakdown={"territory": [100, 0], "population": [10, 5], "military": [10, 10], "economy": [0, 65]},
+        player_techs=[[1, 0, 0, 0], [1, 0, 0, 0]],
         current_player=0,
         turn=5,
         done=False
@@ -73,10 +77,16 @@ def test_game_state_view_from_raw_state():
         "city_owner": [[-1, 0], [-1, -1]],
         "city_level": [[0, 1], [0, 0]],
         "city_population": [[0, 1], [0, 0]],
+        "city_has_port": [[0, 1], [0, 0]],
+        "resource_type": [[0, 1], [0, 0]],
+        "resource_available": [[True, False], [False, False]],
         "units": [
             {"type": 1, "pos": [1, 0], "hp": 10, "owner": 0}
         ],
         "player_stars": [6, 4],
+        "player_score": [150, 90],
+        "score_breakdown": {"territory": [100, 0], "population": [10, 5], "military": [20, 10], "economy": [20, 75]},
+        "player_techs": [[1, 0, 0, 0], [1, 0, 0, 0]],
         "current_player": 0,
         "turn": 1,
         "done": False
@@ -91,8 +101,14 @@ def test_game_state_view_from_raw_state():
     assert state_view.cities[0].pos == [1, 0]
     assert len(state_view.units) == 1
     assert state_view.units[0].type == 1
+    assert state_view.player_score == [150, 90]
+    assert state_view.score_breakdown["territory"] == [100, 0]
     assert state_view.city_population[0][1] == 1
     assert state_view.player_stars == [6, 4]
+    assert state_view.player_techs == [[1, 0, 0, 0], [1, 0, 0, 0]]
+    assert state_view.city_ports == [[0, 1], [0, 0]]
+    assert state_view.resource_type == [[0, 1], [0, 0]]
+    assert state_view.resource_available == [[True, False], [False, False]]
     assert state_view.current_player == 0
     assert state_view.turn == 1
 
@@ -195,6 +211,3 @@ def test_state_response():
     
     assert response.turn == 5
     assert response.state.turn == 5
-
-
-

@@ -6,6 +6,7 @@ export enum ActionType {
   BUILD = 4,
   RESEARCH_TECH = 5,
   END_TURN = 6,
+  HARVEST_RESOURCE = 7,
 }
 
 export enum Direction {
@@ -82,6 +83,31 @@ export function encodeAttack(
   });
 }
 
+export function encodeTrainUnit(
+  unitType: number,
+  targetPos: [number, number]
+): number {
+  return encodeAction({
+    actionType: ActionType.TRAIN_UNIT,
+    targetPos,
+    unitType,
+  });
+}
+
+export function encodeResearchTech(techId: number): number {
+  return encodeAction({
+    actionType: ActionType.RESEARCH_TECH,
+    unitType: techId,
+  });
+}
+
+export function encodeHarvestResource(targetPos: [number, number]): number {
+  return encodeAction({
+    actionType: ActionType.HARVEST_RESOURCE,
+    targetPos,
+  });
+}
+
 export function encodeEndTurn(): number {
   return encodeAction({ actionType: ActionType.END_TURN });
 }
@@ -95,4 +121,3 @@ export function directionFromDelta(
 ): Direction | null {
   return DELTA_TO_DIRECTION[`${delta[0]},${delta[1]}`] ?? null;
 }
-

@@ -2,7 +2,7 @@
 
 import jax
 import jax.numpy as jnp
-from .state import GameState, NO_OWNER
+from .state import GameState, NO_OWNER, GameMode
 
 
 def compute_reward(state: GameState, prev_state: GameState) -> jnp.ndarray:
@@ -116,8 +116,14 @@ def _check_player_won(state: GameState, player: int) -> jnp.ndarray:
         (state.city_owner == player) & (state.city_level > 0)
     )
     
-    # Le joueur a gagné seulement si la partie est terminée ET qu'il a une capitale
-    return state.done & has_capital
+    # En mode Perfection, la victoire se base sur le score final
+    top_score = jnp.max(state.player_score)
+    is_top_scorer = state.player_score[player] == top_score
+    perfection_win = state.done & (state.game_mode == GameMode.PERFECTION) & is_top_scorer
+    
+    domination_win = state.done & (state.game_mode != GameMode.PERFECTION) & has_capital
+    
+    return perfection_win | domination_win
 
 
 def compute_reward_all_players(
@@ -143,4 +149,3 @@ def compute_reward_all_players(
     rewards = jax.vmap(compute_for_player)(player_ids)
     
     return rewards
-

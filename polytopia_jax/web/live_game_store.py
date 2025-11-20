@@ -14,9 +14,11 @@ import jax.numpy as jnp
 from polytopia_jax.core.init import init_random, GameConfig as EngineGameConfig
 from polytopia_jax.core.rules import step
 from polytopia_jax.core.actions import END_TURN_ACTION
-from polytopia_jax.core.state import GameState
+from polytopia_jax.core.state import GameState, GameMode
+from polytopia_jax.ai import DifficultyPreset, HeuristicAI, resolve_difficulty
 
 from scripts.serialize import state_to_dict
+from .view_options import ViewOptions, resolve_view_options
 
 
 HUMAN_PLAYER_ID = 0
@@ -33,6 +35,10 @@ class LiveGameSession:
     opponents: int = 3
     difficulty: str = "crazy"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    ai_agents: Dict[int, HeuristicAI] = field(default_factory=dict)
+    view_options: ViewOptions = field(
+        default_factory=lambda: resolve_view_options()
+    )
 
 
 _LIVE_GAMES: Dict[str, LiveGameSession] = {}
@@ -46,6 +52,7 @@ def create_perfection_game(
     opponents: int = 3,
     difficulty: str = "crazy",
     seed: Optional[int] = None,
+    view_options: Optional[ViewOptions] = None,
 ) -> LiveGameSession:
     """Crée une partie Perfection live et la stocke."""
     num_players = _clamp_players(opponents + 1)
@@ -58,11 +65,18 @@ def create_perfection_game(
         width=board_size,
         num_players=num_players,
         max_units=max(64, board_size * 2),
+        game_mode=GameMode.PERFECTION,
+        max_turns=PERFECTION_MAX_TURNS,
     )
 
     state = init_random(key, engine_config)
+    difficulty_preset = resolve_difficulty(difficulty)
+    state = _apply_difficulty_bonuses(state, difficulty_preset)
+    ai_agents = {
+        player_id: HeuristicAI(player_id, seed=(key_seed + player_id))
+        for player_id in range(1, num_players)
+    }
     state = _enforce_turn_limit(state, PERFECTION_MAX_TURNS)
-    state = _skip_inactive_players(state, PERFECTION_MAX_TURNS)
 
     game_id = uuid4().hex
     session = LiveGameSession(
@@ -70,8 +84,11 @@ def create_perfection_game(
         state=state,
         max_turns=PERFECTION_MAX_TURNS,
         opponents=opponents,
-        difficulty=difficulty,
+        difficulty=difficulty_preset.name,
+        ai_agents=ai_agents,
+        view_options=view_options or resolve_view_options(),
     )
+    session.state = _advance_ai_turns(session, PERFECTION_MAX_TURNS)
     _LIVE_GAMES[game_id] = session
     return session
 
@@ -94,8 +111,8 @@ def apply_action(game_id: str, action_id: int) -> LiveGameSession:
     session = get_game(game_id)
     state = step(session.state, action_id)
     state = _enforce_turn_limit(state, session.max_turns)
-    state = _skip_inactive_players(state, session.max_turns)
     session.state = state
+    session.state = _advance_ai_turns(session, session.max_turns)
     return session
 
 
@@ -104,8 +121,8 @@ def end_turn(game_id: str) -> LiveGameSession:
     session = get_game(game_id)
     state = step(session.state, END_TURN_ACTION)
     state = _enforce_turn_limit(state, session.max_turns)
-    state = _skip_inactive_players(state, session.max_turns)
     session.state = state
+    session.state = _advance_ai_turns(session, session.max_turns)
     return session
 
 
@@ -130,13 +147,19 @@ def _compute_board_size(opponents: int) -> int:
     return base + min(5, opponents)
 
 
-def _skip_inactive_players(state: GameState, max_turns: int) -> GameState:
+def _advance_ai_turns(session: LiveGameSession, max_turns: int) -> GameState:
+    state = session.state
     loop_guard = 0
     while not _is_done(state) and _current_player(state) != HUMAN_PLAYER_ID:
-        state = step(state, END_TURN_ACTION)
+        player_id = _current_player(state)
+        agent = session.ai_agents.get(player_id)
+        if agent is None:
+            state = step(state, END_TURN_ACTION)
+        else:
+            state = _play_ai_turn(state, agent)
         state = _enforce_turn_limit(state, max_turns)
         loop_guard += 1
-        if loop_guard > 16:
+        if loop_guard > 32:
             break
     return state
 
@@ -156,3 +179,21 @@ def _current_player(state: GameState) -> int:
     return int(jnp.asarray(state.current_player))
 
 
+def _play_ai_turn(state: GameState, agent: HeuristicAI) -> GameState:
+    local_guard = 0
+    while not _is_done(state) and _current_player(state) == agent.player_id:
+        action = agent.choose_action(state)
+        state = step(state, action)
+        local_guard += 1
+        if local_guard > state.max_units * 2:
+            state = step(state, END_TURN_ACTION)
+            break
+    return state
+
+
+def _apply_difficulty_bonuses(state: GameState, preset: DifficultyPreset) -> GameState:
+    """Injecte les bonus de revenu dans l'état."""
+    bonus = jnp.zeros(state.num_players, dtype=jnp.int32)
+    for player_id in range(1, state.num_players):
+        bonus = bonus.at[player_id].set(preset.star_bonus)
+    return state.replace(player_income_bonus=bonus)

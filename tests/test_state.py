@@ -8,6 +8,9 @@ from polytopia_jax.core.state import (
     TerrainType,
     UnitType,
     NO_OWNER,
+    GameMode,
+    TechType,
+    ResourceType,
 )
 
 
@@ -53,6 +56,8 @@ def test_create_empty_state():
     assert state.units_hp.shape == (max_units,)
     assert state.units_owner.shape == (max_units,)
     assert state.units_active.shape == (max_units,)
+    assert state.resource_type.shape == (height, width)
+    assert state.resource_available.shape == (height, width)
     
     # Vérifier les valeurs initiales
     assert jnp.all(state.terrain == TerrainType.PLAIN)
@@ -67,6 +72,25 @@ def test_create_empty_state():
     assert state.player_stars.shape == (num_players,)
     assert jnp.all(state.player_stars == 0)
     assert jnp.all(state.city_population == 0)
+    assert jnp.all(state.city_has_port == False)
+    assert state.units_payload_type.shape == (max_units,)
+    assert jnp.all(state.units_payload_type == 0)
+    assert state.player_techs.shape == (num_players, TechType.NUM_TECHS)
+    assert jnp.all(state.player_techs == 0)
+    assert state.player_score.shape == (num_players,)
+    assert jnp.all(state.player_score == 0)
+    assert state.score_territory.shape == (num_players,)
+    assert state.score_population.shape == (num_players,)
+    assert state.score_military.shape == (num_players,)
+    assert state.score_resources.shape == (num_players,)
+    assert jnp.all(state.score_territory == 0)
+    assert jnp.all(state.score_population == 0)
+    assert jnp.all(state.score_military == 0)
+    assert jnp.all(state.score_resources == 0)
+    assert state.game_mode == GameMode.DOMINATION
+    assert state.max_turns == 30
+    assert jnp.all(state.resource_type == ResourceType.NONE)
+    assert jnp.all(state.resource_available == False)
 
 
 def test_state_jit_compatibility():
@@ -105,6 +129,7 @@ def test_state_types():
     assert isinstance(state.city_owner, jnp.ndarray)
     assert isinstance(state.city_level, jnp.ndarray)
     assert isinstance(state.city_population, jnp.ndarray)
+    assert isinstance(state.city_has_port, jnp.ndarray)
     assert isinstance(state.units_type, jnp.ndarray)
     assert isinstance(state.units_pos, jnp.ndarray)
     assert isinstance(state.units_hp, jnp.ndarray)
@@ -114,6 +139,10 @@ def test_state_types():
     assert isinstance(state.turn, jnp.ndarray)
     assert isinstance(state.done, jnp.ndarray)
     assert isinstance(state.player_stars, jnp.ndarray)
-
-
-
+    assert isinstance(state.player_techs, jnp.ndarray)
+    assert isinstance(state.units_payload_type, jnp.ndarray)
+    assert isinstance(state.player_score, jnp.ndarray)
+    assert isinstance(state.score_territory, jnp.ndarray)
+    assert isinstance(state.score_population, jnp.ndarray)
+    assert isinstance(state.score_military, jnp.ndarray)
+    assert isinstance(state.score_resources, jnp.ndarray)

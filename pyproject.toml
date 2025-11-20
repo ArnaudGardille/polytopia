@@ -28,11 +28,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["polytopia_jax", "polytopia_jax.core", "polytopia_jax.web"]
+packages = [
+    "polytopia_jax",
+    "polytopia_jax.core",
+    "polytopia_jax.web",
+    "polytopia_jax.ai",
+    "rl",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-

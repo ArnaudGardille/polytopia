@@ -1,13 +1,18 @@
-import { useMemo } from 'react';
-import type { LiveGameStateResponse } from '../types';
-import { TerrainType } from '../types';
+import { useMemo, useState } from 'react';
+import type { LiveGameStateResponse, CityView } from '../types';
+import { TerrainType, UnitType, ResourceType } from '../types';
 import { Board, type MoveTarget } from './Board';
 import {
   Direction,
+  directionFromDelta,
   encodeAttack,
   encodeMove,
-  directionFromDelta,
+  encodeResearchTech,
+  encodeTrainUnit,
+  encodeHarvestResource,
 } from '../utils/actionEncoder';
+import { TECHNOLOGY_TREE } from '../data/techTree';
+import { getResourceDefinition, HARVEST_ZONE_OFFSETS } from '../data/resources';
 
 interface LiveGameViewProps {
   session: LiveGameStateResponse;
@@ -22,6 +27,14 @@ interface LiveGameViewProps {
 }
 
 const HUMAN_PLAYER_ID = 0;
+
+const TRAINABLE_UNITS = [
+  {
+    type: UnitType.WARRIOR,
+    label: 'Guerrier',
+    cost: 2,
+  },
+] as const;
 
 type HexDirKey = 'NW' | 'NE' | 'W' | 'E' | 'SW' | 'SE';
 
@@ -45,12 +58,6 @@ const HEX_OFFSETS: Record<'even' | 'odd', Record<HexDirKey, [number, number]>> =
     },
   };
 
-const BUTTON_GRID: Array<Array<string>> = [
-  ['NW', 'UP', 'NE'],
-  ['W', 'CENTER', 'E'],
-  ['SW', 'DOWN', 'SE'],
-];
-
 export function LiveGameView({
   session,
   onExit,
@@ -63,8 +70,48 @@ export function LiveGameView({
   error,
 }: LiveGameViewProps) {
   const state = session.state;
+  const [selectedCityPos, setSelectedCityPos] = useState<[number, number] | null>(
+    null
+  );
   const boardHeight = state.terrain.length;
   const boardWidth = state.terrain[0]?.length || 0;
+  const playerStars = state.player_stars?.[HUMAN_PLAYER_ID] ?? 0;
+  const isPlayerTurn = state.current_player === HUMAN_PLAYER_ID;
+  const playerCities = useMemo(
+    () => state.cities.filter((city) => city.owner === HUMAN_PLAYER_ID),
+    [state.cities]
+  );
+  const playerUnits = useMemo(
+    () => state.units.filter((unit) => unit.owner === HUMAN_PLAYER_ID),
+    [state.units]
+  );
+  const playerTechRow = state.player_techs?.[HUMAN_PLAYER_ID] ?? [];
+  const hasTech = (techId: number) =>
+    techId >= 0 && Boolean(playerTechRow[techId]);
+  const getTechName = (techId: number) =>
+    TECHNOLOGY_TREE.find((tech) => tech.id === techId)?.name ?? `Tech ${techId}`;
+  const unlockedTechCount = TECHNOLOGY_TREE.reduce(
+    (count, tech) => count + (hasTech(tech.id) ? 1 : 0),
+    0
+  );
+  const hasTechData = playerTechRow.length > 0;
+
+  const getUnitAt = (x: number, y: number) =>
+    state.units.find((unit) => unit.pos[0] === x && unit.pos[1] === y);
+
+  const isCityOccupied = (city: CityView) =>
+    Boolean(getUnitAt(city.pos[0], city.pos[1]));
+
+  const selectedCity = useMemo(() => {
+    if (!selectedCityPos) return null;
+    return (
+      state.cities.find(
+        (city) =>
+          city.pos[0] === selectedCityPos[0] && city.pos[1] === selectedCityPos[1]
+      ) ?? null
+    );
+  }, [selectedCityPos, state.cities]);
+  const cityOccupied = selectedCity ? isCityOccupied(selectedCity) : false;
   const selectedUnit = useMemo(() => {
     if (selectedUnitId === null) return null;
     return state.units.find((unit) => (unit.id ?? -1) === selectedUnitId) || null;
@@ -78,8 +125,55 @@ export function LiveGameView({
     return HEX_OFFSETS[parity][dir] ?? null;
   };
 
-  const getUnitAt = (x: number, y: number) =>
-    state.units.find((unit) => unit.pos[0] === x && unit.pos[1] === y);
+  const handleSelectCity = (city: CityView) => {
+    const nextPos: [number, number] = [city.pos[0], city.pos[1]];
+    if (
+      selectedCityPos &&
+      selectedCityPos[0] === nextPos[0] &&
+      selectedCityPos[1] === nextPos[1]
+    ) {
+      setSelectedCityPos(null);
+      return;
+    }
+    setSelectedCityPos(nextPos);
+    onSelectUnit(null);
+  };
+
+  const handleDeselectCity = () => {
+    setSelectedCityPos(null);
+  };
+
+  const handleTrainUnit = (unitType: number) => {
+    if (!selectedCity || !isPlayerTurn || isBusy) return;
+    const actionId = encodeTrainUnit(unitType, selectedCity.pos);
+    onSendAction(actionId);
+  };
+
+  const handleHarvestResource = (targetX: number, targetY: number) => {
+    if (!selectedCity || !isPlayerTurn || isBusy) return;
+    const actionId = encodeHarvestResource([targetX, targetY]);
+    onSendAction(actionId);
+  };
+
+  const handleResearchTech = (techId: number) => {
+    if (!isPlayerTurn || isBusy) return;
+    const actionId = encodeResearchTech(techId);
+    onSendAction(actionId);
+  };
+
+  const handleDeselectUnit = () => {
+    onSelectUnit(null);
+    setSelectedCityPos(null);
+  };
+
+  const handleUnitListClick = (unitId: number) => {
+    if (selectedUnitId === unitId) {
+      handleDeselectUnit();
+    } else {
+      setSelectedCityPos(null);
+      onSelectUnit(unitId);
+    }
+  };
 
   const isWithinBounds = (x: number, y: number) =>
     x >= 0 && x < boardWidth && y >= 0 && y < boardHeight;
@@ -89,22 +183,10 @@ export function LiveGameView({
     const terrain = state.terrain[y]?.[x];
     return (
       terrain === TerrainType.PLAIN ||
-      terrain === TerrainType.FOREST
+      terrain === TerrainType.PLAIN_FRUIT ||
+      terrain === TerrainType.FOREST ||
+      terrain === TerrainType.FOREST_WITH_WILD_ANIMAL
     );
-  };
-
-  const resolveDirKey = (button: string): HexDirKey | null => {
-    if (
-      button === 'NW' ||
-      button === 'NE' ||
-      button === 'W' ||
-      button === 'E' ||
-      button === 'SW' ||
-      button === 'SE'
-    ) {
-      return button as HexDirKey;
-    }
-    return null;
   };
 
   const getTargetForDir = (dir: HexDirKey): [number, number] | null => {
@@ -153,6 +235,12 @@ export function LiveGameView({
   ): Direction | null => {
     if (dx === 0 && dy === -2) return Direction.UP;
     if (dx === 0 && dy === 2) return Direction.DOWN;
+    if (dx === 0 && dy === -1) {
+      return fromY % 2 === 0 ? Direction.UP_RIGHT : Direction.UP_LEFT;
+    }
+    if (dx === 0 && dy === 1) {
+      return fromY % 2 === 0 ? Direction.DOWN_RIGHT : Direction.DOWN_LEFT;
+    }
     const parity = fromY % 2 === 0 ? 'even' : 'odd';
     const hexOffsets = HEX_OFFSETS[parity];
     for (const dir of Object.keys(hexOffsets) as HexDirKey[]) {
@@ -176,6 +264,7 @@ export function LiveGameView({
     if (occupant && occupant.owner !== HUMAN_PLAYER_ID) {
       const actionId = encodeAttack(unitId, target);
       onSendAction(actionId);
+      onSelectUnit(null);
       return;
     }
     if (!isTileTraversable(targetX, targetY)) {
@@ -187,18 +276,7 @@ export function LiveGameView({
     if (direction === null) return;
     const actionId = encodeMove(unitId, direction);
     onSendAction(actionId);
-  };
-
-  const handleHexCommand = (dir: HexDirKey) => {
-    const target = getTargetForDir(dir);
-    if (!target) return;
-    executeActionAtTarget(target);
-  };
-
-  const handleVerticalCommand = (direction: 'UP' | 'DOWN') => {
-    const target = getVerticalTarget(direction);
-    if (!target) return;
-    executeActionAtTarget(target);
+    onSelectUnit(null);
   };
 
   const handleMoveToCell = (target: MoveTarget) => {
@@ -207,6 +285,7 @@ export function LiveGameView({
 
   const moveTargets = useMemo<MoveTarget[]>(() => {
     if (!selectedUnit) return [];
+    if (selectedUnit.has_acted) return [];
 
     const targets: MoveTarget[] = [];
     const collectTarget = (target: [number, number] | null) => {
@@ -247,10 +326,71 @@ export function LiveGameView({
     state.terrain,
   ]);
 
+  const harvestableResources = useMemo(() => {
+    if (!selectedCity) return [];
+    const [cityX, cityY] = selectedCity.pos;
+    const resourceTypes = state.resource_type ?? [];
+    const resourceAvailability = state.resource_available ?? [];
+    const list: {
+      x: number;
+      y: number;
+      label: string;
+      population: number;
+      cost: number;
+      available: boolean;
+      missingTech: boolean;
+      canHarvest: boolean;
+    }[] = [];
+    for (const [dx, dy] of HARVEST_ZONE_OFFSETS) {
+      const targetX = cityX + dx;
+      const targetY = cityY + dy;
+      if (
+        targetX < 0 ||
+        targetX >= boardWidth ||
+        targetY < 0 ||
+        targetY >= boardHeight
+      ) {
+        continue;
+      }
+      const resourceType =
+        resourceTypes?.[targetY]?.[targetX] ?? ResourceType.NONE;
+      const def = getResourceDefinition(resourceType);
+      if (!def || def.id === ResourceType.NONE) continue;
+      const available = Boolean(resourceAvailability?.[targetY]?.[targetX]);
+      const hasTechForResource =
+        def.requiredTech === undefined
+          ? true
+          : Boolean(playerTechRow[def.requiredTech] ?? false);
+      const canAfford = playerStars >= def.cost;
+      list.push({
+        x: targetX,
+        y: targetY,
+        label: def.name,
+        population: def.population,
+        cost: def.cost,
+        available,
+        missingTech: !hasTechForResource,
+        canHarvest: available && hasTechForResource && canAfford,
+      });
+    }
+    return list;
+  }, [
+    selectedCity,
+    state.resource_type,
+    state.resource_available,
+    boardWidth,
+    boardHeight,
+    playerStars,
+    playerTechRow,
+  ]);
+
   const turnProgress = Math.min(
     100,
     Math.round((state.turn / session.maxTurns) * 100)
   );
+  const humanScore = state.player_score?.[HUMAN_PLAYER_ID];
+  const humanStars = state.player_stars?.[HUMAN_PLAYER_ID];
+  const humanIncome = state.player_income?.[HUMAN_PLAYER_ID];
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
@@ -282,16 +422,22 @@ export function LiveGameView({
         </div>
       )}
 
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 p-4">
+      <main className="flex-1 grid grid-cols-1 lg:grid-cols-[2fr_0.6fr] gap-4 p-4">
         <div className="bg-gray-800/60 rounded-2xl p-4">
           <Board
             state={state}
             selectedUnitId={selectedUnitId}
             selectableUnitOwner={HUMAN_PLAYER_ID}
+            onDeselectUnit={handleDeselectUnit}
+            selectedCityPos={selectedCityPos}
+            selectableCityOwner={HUMAN_PLAYER_ID}
+            onSelectCity={handleSelectCity}
+            onDeselectCity={handleDeselectCity}
             onSelectUnit={(unitId, owner) => {
               if (owner === HUMAN_PLAYER_ID) {
+                setSelectedCityPos(null);
                 if (selectedUnitId === unitId) {
-                  onSelectUnit(null);
+                  handleDeselectUnit();
                 } else {
                   onSelectUnit(unitId);
                 }
@@ -302,7 +448,29 @@ export function LiveGameView({
           />
         </div>
 
-        <aside className="bg-gray-800/60 rounded-2xl p-6 flex flex-col gap-6">
+        <aside className="bg-gray-800/60 rounded-2xl p-6 flex flex-col gap-6 lg:max-w-sm">
+          <section>
+            <h2 className="text-lg font-semibold mb-3">Statistiques</h2>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-gray-900/30 rounded-xl p-3">
+                <p className="text-sm text-gray-400">Score</p>
+                <p className="text-2xl font-bold">{humanScore ?? '—'}</p>
+              </div>
+              <div className="bg-gray-900/30 rounded-xl p-3">
+                <p className="text-sm text-gray-400">Étoiles</p>
+                <p className="text-2xl font-bold">
+                  {humanStars !== undefined ? `${humanStars} ★` : '—'}
+                </p>
+              </div>
+              <div className="bg-gray-900/30 rounded-xl p-3">
+                <p className="text-sm text-gray-400">Gain</p>
+                <p className="text-xl font-bold">
+                  {humanIncome !== undefined ? `${humanIncome} ★/tour` : '—'}
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section>
             <h2 className="text-lg font-semibold mb-2">Progression</h2>
             <div className="text-sm text-gray-400 mb-1">
@@ -325,35 +493,32 @@ export function LiveGameView({
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-semibold">Unités</h2>
               <button
-                onClick={() => onSelectUnit(null)}
+                onClick={handleDeselectUnit}
                 className="text-sm text-gray-400 hover:text-white"
               >
                 Désélectionner
               </button>
             </div>
             <div className="max-h-40 overflow-y-auto pr-1">
-              {state.units
-                .filter((unit) => unit.owner === HUMAN_PLAYER_ID)
-                .map((unit) => {
-                  const unitId = unit.id ?? -1;
-                  const isSelected = unitId === selectedUnitId;
-                  return (
-                    <button
-                      key={unitId}
-                      onClick={() => onSelectUnit(unitId)}
-                      className={`w-full text-left px-3 py-2 rounded-lg mb-2 transition ${
-                        isSelected
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
-                      }`}
-                    >
-                      Guerrier #{unitId} – ({unit.pos[0]}, {unit.pos[1]}) · HP{' '}
-                      {unit.hp}
-                    </button>
-                  );
-                })}
-              {state.units.filter((u) => u.owner === HUMAN_PLAYER_ID).length ===
-                0 && (
+              {playerUnits.map((unit) => {
+                const unitId = unit.id ?? -1;
+                const isSelected = unitId === selectedUnitId;
+                return (
+                  <button
+                    key={unitId}
+                    onClick={() => handleUnitListClick(unitId)}
+                    className={`w-full text-left px-3 py-2 rounded-lg mb-2 transition ${
+                      isSelected
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                    }`}
+                  >
+                    Guerrier #{unitId} – ({unit.pos[0]}, {unit.pos[1]}) · HP{' '}
+                    {unit.hp}
+                  </button>
+                );
+              })}
+              {playerUnits.length === 0 && (
                 <p className="text-sm text-gray-400">
                   Aucune unité disponible. Terminez votre tour.
                 </p>
@@ -362,95 +527,285 @@ export function LiveGameView({
           </section>
 
           <section>
-            <h3 className="font-semibold mb-2">Déplacements / Attaques</h3>
-            <div className="grid grid-cols-3 gap-2 max-w-xs">
-              {BUTTON_GRID.flatMap((rowButtons, rowIndex) =>
-                rowButtons.map((button, idx) => {
-                  if (button === 'CENTER') {
-                    return (
-                      <div
-                        key={`center-${rowIndex}-${idx}`}
-                        className="flex items-center justify-center text-gray-600"
-                      >
-                        •
-                      </div>
-                    );
-                  }
-                  const isVerticalButton = button === 'UP' || button === 'DOWN';
-                  const resolvedKey = !isVerticalButton
-                    ? resolveDirKey(button)
-                    : null;
-                  if (!isVerticalButton && !resolvedKey) {
-                    return (
-                      <div
-                        key={`placeholder-${rowIndex}-${idx}`}
-                        className="flex items-center justify-center text-gray-600"
-                      >
-                        {button}
-                      </div>
-                    );
-                  }
-                  const target = isVerticalButton
-                    ? getVerticalTarget(button as 'UP' | 'DOWN')
-                    : resolvedKey
-                    ? getTargetForDir(resolvedKey)
-                    : null;
-                  const occupant = target
-                    ? state.units.find(
-                        (unit) =>
-                          unit.pos[0] === target[0] && unit.pos[1] === target[1]
-                      )
-                    : undefined;
-                  const isFriendlyOccupant =
-                    !!occupant && occupant.owner === HUMAN_PLAYER_ID;
-                  const disabled =
-                    !selectedUnit || !target || isBusy || isFriendlyOccupant;
-                  const label =
-                    button === 'UP'
-                      ? '↑'
-                      : button === 'DOWN'
-                      ? '↓'
-                      : button === 'W'
-                      ? '←'
-                      : button === 'E'
-                      ? '→'
-                      : button === 'NW'
-                      ? '↖'
-                      : button === 'NE'
-                      ? '↗'
-                      : button === 'SW'
-                      ? '↙'
-                      : '↘';
-                  const handleClick = () => {
-                    if (disabled || !target) return;
-                    if (isVerticalButton) {
-                      handleVerticalCommand(button as 'UP' | 'DOWN');
-                    } else if (resolvedKey) {
-                      handleHexCommand(resolvedKey);
-                    }
-                  };
-                  return (
-                    <button
-                      key={`${button}-${rowIndex}-${idx}`}
-                      onClick={handleClick}
-                      disabled={disabled}
-                      className="px-3 py-2 bg-blue-500/80 hover:bg-blue-500 rounded-lg disabled:opacity-40"
-                      title={
-                        target
-                          ? `(${target[0]}, ${target[1]})${
-                              occupant && occupant.owner !== HUMAN_PLAYER_ID
-                                ? ' · Attaque'
-                                : ''
-                            }`
-                          : undefined
-                      }
-                    >
-                      {label}
-                    </button>
-                  );
-                })
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">Villes</h2>
+              <span className="text-sm text-amber-300 font-semibold">
+                ★ {playerStars}
+              </span>
+            </div>
+            <div className="max-h-32 overflow-y-auto pr-1">
+              {playerCities.map((city, idx) => {
+                const isSelected =
+                  selectedCityPos?.[0] === city.pos[0] &&
+                  selectedCityPos?.[1] === city.pos[1];
+                return (
+                  <button
+                    key={`${city.pos[0]}-${city.pos[1]}-${idx}`}
+                    onClick={() => handleSelectCity(city)}
+                    className={`w-full text-left px-3 py-2 rounded-lg mb-2 transition ${
+                      isSelected
+                        ? 'bg-cyan-600 text-white'
+                        : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                    }`}
+                  >
+                    Ville ({city.pos[0]}, {city.pos[1]}) · Niveau {city.level}
+                  </button>
+                );
+              })}
+              {playerCities.length === 0 && (
+                <p className="text-sm text-gray-400">
+                  Aucune ville sous votre contrôle.
+                </p>
               )}
             </div>
+            {selectedCity && (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center justify-between text-sm text-gray-300">
+                  <span>
+                    Ville ({selectedCity.pos[0]}, {selectedCity.pos[1]}) · Niveau{' '}
+                    {selectedCity.level}
+                  </span>
+                  <button
+                    onClick={handleDeselectCity}
+                    className="text-xs text-gray-400 hover:text-white"
+                  >
+                    Fermer
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {TRAINABLE_UNITS.map((unit) => {
+                    const affordable = playerStars >= unit.cost;
+                    const disabled =
+                      !isPlayerTurn || isBusy || !affordable || cityOccupied;
+                    const title = !isPlayerTurn
+                      ? 'Attendez votre tour'
+                      : cityOccupied
+                      ? 'Case occupée'
+                      : !affordable
+                      ? "Pas assez d'étoiles"
+                      : undefined;
+                    return (
+                      <button
+                        key={unit.type}
+                        onClick={() => handleTrainUnit(unit.type)}
+                        disabled={disabled}
+                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-semibold disabled:opacity-40"
+                        title={title}
+                      >
+                        {unit.label} ({unit.cost}★)
+                      </button>
+                    );
+                  })}
+                </div>
+                {!isPlayerTurn && (
+                  <p className="text-xs text-orange-300">
+                    Patientez jusqu'à votre tour pour entraîner une unité.
+                  </p>
+                )}
+                {cityOccupied && (
+                  <p className="text-xs text-orange-300">
+                    La case est occupée, libérez-la avant de recruter.
+                  </p>
+                )}
+                <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold">
+                      Ressources adjacentes
+                    </h4>
+                    <span className="text-xs text-gray-400">
+                      Zone de récolte
+                    </span>
+                  </div>
+                  {harvestableResources.length === 0 ? (
+                    <p className="text-xs text-gray-400">
+                      Aucune ressource exploitable.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {harvestableResources.map((resource) => {
+                        const disabled =
+                          !resource.canHarvest || !isPlayerTurn || isBusy;
+                        const title = !resource.available
+                          ? 'Ressource déjà récoltée'
+                          : resource.missingTech
+                          ? 'Technologie requise'
+                          : playerStars < resource.cost
+                          ? "Pas assez d'étoiles"
+                          : undefined;
+                        return (
+                          <div
+                            key={`${resource.x}-${resource.y}-${resource.label}`}
+                            className="flex items-center justify-between gap-2 text-sm"
+                          >
+                            <div>
+                              <p className="font-semibold">
+                                {resource.label}{' '}
+                                <span className="text-xs text-gray-400">
+                                  ({resource.x}, {resource.y}) · +
+                                  {resource.population} pop
+                                </span>
+                              </p>
+                              {!resource.available && (
+                                <p className="text-xs text-gray-500">
+                                  Épuisée
+                                </p>
+                              )}
+                              {resource.missingTech && (
+                                <p className="text-xs text-amber-400">
+                                  Tech requise
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() =>
+                                handleHarvestResource(resource.x, resource.y)
+                              }
+                              disabled={disabled}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 rounded-lg text-xs font-semibold disabled:opacity-40"
+                              title={title}
+                            >
+                              Récolter ({resource.cost}★)
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">Technologies</h2>
+              <span className="text-sm text-gray-400">
+                {unlockedTechCount}/{TECHNOLOGY_TREE.length}
+              </span>
+            </div>
+            {!hasTechData ? (
+              <p className="text-sm text-gray-400">
+                Arbre des technologies indisponible sur cette partie.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {TECHNOLOGY_TREE.map((tech) => {
+                  const unlocked = hasTech(tech.id);
+                  const dependencyStates = tech.dependencies.map((dep) => ({
+                    id: dep,
+                    name: getTechName(dep),
+                    fulfilled: hasTech(dep),
+                  }));
+                  const missingDeps = dependencyStates.filter(
+                    (dep) => !dep.fulfilled
+                  );
+                  const depsMet = missingDeps.length === 0;
+                  const affordable = playerStars >= tech.cost;
+                  const available = !unlocked && depsMet && affordable;
+                  const statusLabel = unlocked
+                    ? 'Debloquee'
+                    : !depsMet
+                    ? 'Prerequis manquants'
+                    : affordable
+                    ? 'Disponible'
+                    : 'Trop couteuse';
+                  const statusColor = unlocked
+                    ? 'text-emerald-300'
+                    : available
+                    ? 'text-cyan-300'
+                    : 'text-orange-300';
+                  const disabledReason = !isPlayerTurn
+                    ? 'Attendez votre tour'
+                    : isBusy
+                    ? 'Action en cours'
+                    : unlocked
+                    ? 'Technologie deja debloquee'
+                    : !depsMet
+                    ? `Prerequis manquants: ${missingDeps
+                        .map((dep) => dep.name)
+                        .join(', ')}`
+                    : !affordable
+                    ? "Pas assez d'etoiles"
+                    : undefined;
+                  const canResearch = available && isPlayerTurn && !isBusy;
+                  return (
+                    <div
+                      key={tech.id}
+                      className={`p-4 rounded-2xl border transition ${
+                        unlocked
+                          ? 'border-emerald-500/40 bg-emerald-900/10'
+                          : available
+                          ? 'border-cyan-500/40 bg-cyan-900/10'
+                          : 'border-gray-700 bg-gray-900/30'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-base">{tech.name}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {tech.description}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-200 font-semibold">
+                            {tech.cost} ★
+                          </div>
+                          <div className={`text-xs font-semibold ${statusColor}`}>
+                            {statusLabel}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-gray-300 mb-1">
+                          Prerequis
+                        </p>
+                        {dependencyStates.length === 0 ? (
+                          <p className="text-xs text-gray-400">Aucun</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {dependencyStates.map((dep) => (
+                              <span
+                                key={dep.id}
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  dep.fulfilled
+                                    ? 'bg-emerald-500/20 text-emerald-200'
+                                    : 'bg-orange-500/10 text-orange-200'
+                                }`}
+                              >
+                                {dep.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-gray-300 mb-1">
+                          Effets
+                        </p>
+                        <ul className="list-disc text-xs text-gray-300 ml-4 space-y-1">
+                          {tech.unlocks.map((unlock, idx) => (
+                            <li key={idx}>{unlock}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <button
+                        onClick={() => handleResearchTech(tech.id)}
+                        disabled={!canResearch}
+                        title={disabledReason}
+                        className="mt-3 w-full py-2 rounded-xl font-semibold text-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Rechercher ({tech.cost}★)
+                      </button>
+                      {!isPlayerTurn && (
+                        <p className="text-xs text-orange-300 mt-1">
+                          Patientez jusqua votre tour pour lancer une recherche.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <section className="flex flex-col gap-3">
@@ -467,4 +822,3 @@ export function LiveGameView({
     </div>
   );
 }
-

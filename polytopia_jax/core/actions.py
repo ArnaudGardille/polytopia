@@ -14,7 +14,8 @@ class ActionType(IntEnum):
     BUILD = 4
     RESEARCH_TECH = 5
     END_TURN = 6
-    NUM_ACTIONS = 7
+    HARVEST_RESOURCE = 7
+    NUM_ACTIONS = 8
 
 
 # Directions pour les mouvements (8 directions)
@@ -170,4 +171,3 @@ def get_action_direction_delta(direction: int) -> jnp.ndarray:
 # Constantes pour les actions spéciales
 NO_ACTION = encode_action(ActionType.NO_OP)
 END_TURN_ACTION = encode_action(ActionType.END_TURN)
-

@@ -8,6 +8,9 @@ from polytopia_jax.core.state import (
     TerrainType,
     UnitType,
     NO_OWNER,
+    GameMode,
+    TechType,
+    ResourceType,
 )
 
 
@@ -35,6 +38,15 @@ def test_init_random_basic():
     # Vérifier l'économie de départ
     assert state.player_stars.shape == (config.num_players,)
     assert jnp.all(state.player_stars == STARTING_PLAYER_STARS)
+    assert jnp.all(state.city_has_port == 0)
+    assert state.player_techs.shape == (config.num_players, TechType.NUM_TECHS)
+    assert jnp.all(state.player_techs == 0)
+    assert state.game_mode == GameMode.DOMINATION
+    assert state.max_turns == config.max_turns
+    assert state.player_score.shape == (config.num_players,)
+    assert jnp.all(state.player_score >= 0)
+    assert state.resource_type.shape == (config.height, config.width)
+    assert state.resource_available.shape == (config.height, config.width)
 
 
 def test_init_random_reproducibility():
@@ -157,10 +169,18 @@ def test_init_random_terrain_generation():
     state = init_random(key, config)
     
     # Vérifier que tous les terrains sont valides
-    valid_terrains = jnp.isin(
-        state.terrain,
-        jnp.array([TerrainType.PLAIN, TerrainType.FOREST, TerrainType.WATER_SHALLOW])
-    )
+    valid_types = jnp.array([
+        TerrainType.PLAIN,
+        TerrainType.FOREST,
+        TerrainType.MOUNTAIN,
+        TerrainType.WATER_SHALLOW,
+        TerrainType.WATER_DEEP,
+        TerrainType.PLAIN_FRUIT,
+        TerrainType.FOREST_WITH_WILD_ANIMAL,
+        TerrainType.MOUNTAIN_WITH_MINE,
+        TerrainType.WATER_SHALLOW_WITH_FISH,
+    ])
+    valid_terrains = jnp.isin(state.terrain, valid_types)
     assert jnp.all(valid_terrains)
     
     # Vérifier que les capitales sont sur des plaines

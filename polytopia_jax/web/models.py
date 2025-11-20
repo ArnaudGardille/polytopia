@@ -12,6 +12,7 @@ class UnitView(BaseModel):
     pos: List[int] = Field(..., description="Position [x, y]")
     hp: int = Field(..., description="Points de vie")
     owner: int = Field(..., description="Propriétaire de l'unité")
+    has_acted: bool = Field(False, description="L'unité a déjà agi ce tour")
     
     class Config:
         json_schema_extra = {
@@ -19,7 +20,8 @@ class UnitView(BaseModel):
                 "type": 1,
                 "pos": [3, 4],
                 "hp": 10,
-                "owner": 0
+                "owner": 0,
+                "has_acted": False,
             }
         }
 
@@ -48,7 +50,18 @@ class GameStateView(BaseModel):
     cities: List[CityView] = Field(default_factory=list, description="Liste des villes")
     units: List[UnitView] = Field(default_factory=list, description="Liste des unités")
     city_population: List[List[int]] = Field(default_factory=list, description="Population de chaque case ville")
+    city_ports: List[List[int]] = Field(default_factory=list, description="Ports présents sur les villes")
+    resource_type: List[List[int]] = Field(default_factory=list, description="Type de ressource par case")
+    resource_available: List[List[bool]] = Field(default_factory=list, description="Disponibilité des ressources (True = disponible)")
     player_stars: List[int] = Field(default_factory=list, description="Ressources économiques par joueur")
+    player_income: List[int] = Field(default_factory=list, description="Gain d'étoiles par tour pour chaque joueur")
+    player_score: List[int] = Field(default_factory=list, description="Score total par joueur")
+    score_breakdown: dict = Field(default_factory=dict, description="Breakdown des scores (territoire, population, militaire, économie)")
+    player_techs: List[List[int]] = Field(default_factory=list, description="Technologies débloquées par joueur")
+    visibility_mask: Optional[List[List[int]]] = Field(
+        None,
+        description="Masque de visibilité (1 = case révélée)",
+    )
     current_player: int = Field(..., description="Joueur actif")
     turn: int = Field(..., description="Numéro de tour")
     done: bool = Field(..., description="Partie terminée")
@@ -63,6 +76,7 @@ class GameStateView(BaseModel):
         city_owner = state.get("city_owner", [])
         city_level = state.get("city_level", [])
         city_population = state.get("city_population", [])
+        city_ports = state.get("city_has_port", [])
         
         if city_owner and city_level:
             height = len(city_owner)
@@ -88,17 +102,33 @@ class GameStateView(BaseModel):
                 type=unit["type"],
                 pos=unit["pos"],
                 hp=unit["hp"],
-                owner=unit["owner"]
+                owner=unit["owner"],
+                has_acted=unit.get("has_acted", False),
             ))
         
         player_stars = state.get("player_stars", [])
+        player_income = state.get("player_income", [])
+        player_score = state.get("player_score", [])
+        score_breakdown = state.get("score_breakdown", {})
+        player_techs = state.get("player_techs", [])
+        resource_type = state.get("resource_type", [])
+        resource_available = state.get("resource_available", [])
+        visibility_mask = state.get("visibility_mask")
         
         return cls(
             terrain=terrain,
             cities=cities,
             units=units,
             city_population=city_population,
+            city_ports=city_ports,
+            resource_type=resource_type,
+            resource_available=resource_available,
             player_stars=player_stars,
+            player_income=player_income,
+            player_score=player_score,
+            score_breakdown=score_breakdown,
+            player_techs=player_techs,
+            visibility_mask=visibility_mask,
             current_player=state.get("current_player", 0),
             turn=state.get("turn", 0),
             done=state.get("done", False)
@@ -111,7 +141,18 @@ class GameStateView(BaseModel):
                 "cities": [{"owner": 0, "level": 1, "pos": [0, 0]}],
                 "units": [{"type": 1, "pos": [1, 1], "hp": 10, "owner": 0}],
                 "city_population": [[0, 0], [0, 1]],
+                "city_ports": [[0, 0], [0, 1]],
                 "player_stars": [5, 5],
+                "player_income": [3, 2],
+                "player_score": [120, 80],
+                "score_breakdown": {
+                    "territory": [100, 0],
+                    "population": [10, 5],
+                    "military": [10, 10],
+                    "economy": [0, 65],
+                },
+                "player_techs": [[1, 0, 0, 0], [1, 0, 0, 0]],
+                "visibility_mask": [[1, 1], [1, 1]],
                 "current_player": 0,
                 "turn": 1,
                 "done": False
@@ -234,8 +275,16 @@ class LiveGameConfig(BaseModel):
     """Payload de configuration pour une partie live."""
 
     opponents: int = Field(3, ge=1, le=9, description="Nombre d'adversaires IA")
-    difficulty: str = Field("crazy", description="Difficulté symbolique (IA future)")
+    difficulty: str = Field("crazy", description="Difficulté (impact les bonus d'étoiles des IA)")
     seed: Optional[int] = Field(None, description="Seed optionnelle pour reproductibilité")
+    reveal_map: Optional[bool] = Field(
+        None,
+        description="Forcer l'affichage de toute la carte",
+    )
+    unlock_all_techs: Optional[bool] = Field(
+        None,
+        description="Débloquer automatiquement toutes les technologies",
+    )
 
 
 class LiveActionPayload(BaseModel):

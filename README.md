@@ -98,23 +98,27 @@ Aucune fonction dans `polytopia_jax/core/` ne doit interagir avec l'extérieur (
 
 ## 4. Environnements RL (`rl/`)
 
-Deux wrappers sont prévus :
+Deux wrappers sont fournis :
 
 ### Gymnasium (single-agent)
 
-Implémente l'API standard :
+`rl.gym_env.PolytopiaEnv` expose le joueur 0 tandis que les autres tribus sont contrôlées par les heuristiques IA (mêmes règles que le mode live). Exemple :
 
 ```python
-env = PolytopiaEnv()
+from rl.gym_env import PolytopiaEnv, SimulationConfig
+
+env = PolytopiaEnv(SimulationConfig(opponents=2, difficulty="hard"))
 obs, info = env.reset()
-obs, reward, terminated, truncated, info = env.step(action)
+while True:
+    action = env.action_space.sample()
+    obs, reward, terminated, truncated, info = env.step(action)
+    if terminated or truncated:
+        break
 ```
 
-L'observation correspond à une vue normalisée du plateau pour le joueur courant.
+### PettingZoo (AEC)
 
-### PettingZoo (multi-agent)
-
-Permet le self-play et les agents indépendants. Support des modes AEC et Parallel.
+`rl.pettingzoo_env.PolytopiaAECEnv` expose le même joueur 0 mais via l'API AEC (tous les autres agents sont résolus automatiquement, ce qui simplifie l'intégration self-play). Les observations et espaces d'actions sont identiques à ceux du wrapper Gym.
 
 ---
 
@@ -255,26 +259,51 @@ Cette section détaille les étapes proposées pour rapprocher progressivement l
    - Faire évoluer `city_level` en fonction de la population, débloquer les bonus d'étoiles et introduire les améliorations de ville (mur, port, marché) avec leurs effets économiques.  
    - Implémenter les deux modes de victoire : Perfection (score au tour 30) et Domination (élimination), en branchant la logique dans `_check_victory` et la boucle principale.  
    - Créer une représentation de score compatible avec les replays/frontends.
+   
+   **État actuel (Phase 2)**  
+   - `GameState` encode désormais le `game_mode` (Domination ou Perfection) et un `max_turns`, déclenchant la fin de partie au tour 30 pour Perfection.  
+   - Un système de score agrège automatiquement territoire, population, armée et trésor (`player_score` + `score_breakdown`) et est exposé aux replays/API.  
+   - Les conditions de victoire et les récompenses RL utilisent ces scores pour départager les joueurs lors d'une fin de partie en Perfection.
 
 4. **Phase 3 – Arbre technologique**  
    - Définir une structure de technologies avec coûts croissants et dépendances.  
    - Connecter chaque techno aux unités/bâtiments/terrains qu'elle déverrouille (Climbing, Sailing, Roads...).  
    - Étendre `polytopia_jax/core/actions.py` pour encoder la sélection d'une technologie et mettre à jour `legal_actions_mask`.
+   
+   **État actuel (Phase 3)**  
+   - `GameState` conserve désormais un tableau `player_techs`; l'action `RESEARCH_TECH` débloque Climbing, Sailing ou Mining selon le budget et les dépendances (Sailing requiert Climbing).  
+   - Le moteur restreint les actions : montagnes et eaux peu profondes exigent la techno adaptée, et les mines ne peuvent être construites qu'après Mining.  
+   - Le masque d'actions et les payloads API/replay exposent les technos restantes afin que les clients puissent piloter ou afficher l'arbre débloqué.
 
 5. **Phase 4 – Diversité d'unités terrestres**  
    - Étendre `UnitType` + tables de stats pour inclure Défenseur, Archer, Cavalier, Mind Bender, Catapulte, etc., en respectant les compétences décrites dans `Polytopia.md`.  
    - Implémenter les capacités spéciales (Dash, portée >1, conversion, riposte asymétrique) et garantir leur traçabilité JAX.  
    - Ajouter des tests ciblés par type d'unité et exposer les nouveaux sprites/états au frontend.
+   
+   **État actuel (Phase 4)**  
+   - Trois nouvelles unités (`DEFENDER`, `ARCHER`, `RIDER`) sont disponibles avec des statistiques dédiées (PV, attaque, défense, coût, portée).  
+   - Les archers tirent désormais à distance 2 sans subir de riposte lorsqu'ils restent hors de portée, et les mineurs doivent débloquer la techno Mining avant construction.  
+   - Les tableaux `UNIT_*` et les tests de règles couvrent ces scénarios (capacité de tir longue portée, impossibilité d'attaquer hors portée pour les unités de mêlée, prérequis technologiques pour les bâtiments).
 
 6. **Phase 5 – Navigation et terrains avancés**  
    - Introduire les radeaux/bateaux et la transformation d'unités terrestres en navales via les ports.  
    - Gérer les terrains `WATER_SHALLOW`, `WATER_DEEP`, montagnes et la nécessité d'avoir la techno adaptée pour y entrer.  
    - Adapter les visualisations (backend + frontend) pour représenter les unités navales et les connexions maritimes.
 
+   **État actuel (Phase 5)**  
+   - Les villes peuvent construire des ports (tech Sailing requise) et permettre l'embarquement d'unités terrestres en `RAFT`, avec suivi du type transporté.  
+   - Les déplacements/mouvements prennent en compte les ports et les restrictions d'eau : seuls les radeaux peuvent naviguer en eau peu profonde, l'accostage ne peut se faire que sur un port allié.  
+   - Les replays/API exposent désormais la présence des ports et les métadonnées nécessaires (`city_has_port`, `player_techs`, `payload_type`) afin que le frontend puisse représenter la navigation fidèlement.
+
 7. **Phase 6 – IA et difficultés**  
    - Développer des heuristiques simples pour les IA (priorité expansion/combat) et appliquer des bonus d'étoiles par niveau de difficulté.  
    - Supporter plusieurs adversaires simultanés et synchroniser les wrappers RL (`rl/`) avec cette logique multi-agent.  
    - Enregistrer de nouveaux replays de référence pour tester les comportements.
+   
+   **État actuel (Phase 6)**  
+   - Les IA heuristiques déplacent et attaquent automatiquement leurs unités, construisent de nouvelles troupes et jouent leurs tours complets côté backend/live.  
+   - Les difficultés `easy`→`crazy` ajoutent désormais un bonus d'étoiles par tour aux IA ; ce bonus est visible côté API/Frontend et utilisé par les wrappers RL.  
+   - Le dossier `rl/` expose des sessions partagées (`SimulationSession`) ainsi que des wrappers Gymnasium et PettingZoo branchés sur cette logique multi-adversaires.
 
 8. **Phase 7 – Contenus avancés et tribus spéciales**  
    - Implémenter monuments, temples et leur contribution au score.  
@@ -292,4 +321,4 @@ Le backend expose désormais un mode Perfection jouable en temps réel :
 - `POST /live/{game_id}/action` — applique une action encodée (mêmes bits que `core.actions.encode_action`).
 - `POST /live/{game_id}/end_turn` — termine explicitement le tour du joueur humain.
 
-L’interface React permet de lancer ce mode via le bouton PERFECTION → `START GAME`, puis de jouer (sélection des unités, déplacements, attaques, fin de tour). Tant que les IA sont inactives, leurs tours sont automatiquement passés côté serveur pour revenir au joueur 0.
+L’interface React permet de lancer ce mode via le bouton PERFECTION → `START GAME`, puis de jouer (sélection des unités, déplacements, attaques, fin de tour). Les IA jouent désormais leurs tours complètes côté serveur (mouvements offensifs basiques + recrutement) et appliquent les bonus d’étoiles liés à la difficulté choisie avant de rendre la main au joueur 0.

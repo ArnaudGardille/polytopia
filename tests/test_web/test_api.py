@@ -53,11 +53,15 @@ def sample_replay(temp_replays_dir):
                 "terrain": [[0, 0], [0, 0]],
                 "city_owner": [[-1, 0], [-1, -1]],
                 "city_level": [[0, 1], [0, 0]],
+                "city_has_port": [[0, 0], [0, 0]],
                 "units": [
-                    {"type": 1, "pos": [0, 0], "hp": 10, "owner": 0}
+                    {"type": 1, "pos": [0, 0], "hp": 10, "owner": 0, "payload_type": 1}
                 ],
                 "city_population": [[0, 1], [0, 0]],
                 "player_stars": [5, 5],
+                "player_score": [120, 80],
+                "score_breakdown": {"territory": [100, 0], "population": [10, 5], "military": [10, 5], "economy": [0, 70]},
+                "player_techs": [[1, 0, 0, 0], [0, 0, 0, 0]],
                 "current_player": 0,
                 "turn": 0,
                 "done": False
@@ -66,11 +70,15 @@ def sample_replay(temp_replays_dir):
                 "terrain": [[0, 0], [0, 0]],
                 "city_owner": [[-1, 0], [-1, -1]],
                 "city_level": [[0, 1], [0, 0]],
+                "city_has_port": [[0, 0], [0, 0]],
                 "units": [
-                    {"type": 1, "pos": [1, 0], "hp": 10, "owner": 0}
+                    {"type": 1, "pos": [1, 0], "hp": 10, "owner": 0, "payload_type": 1}
                 ],
                 "city_population": [[0, 1], [0, 0]],
                 "player_stars": [7, 5],
+                "player_score": [140, 90],
+                "score_breakdown": {"territory": [100, 0], "population": [15, 5], "military": [15, 5], "economy": [10, 80]},
+                "player_techs": [[1, 1, 0, 0], [0, 0, 0, 0]],
                 "current_player": 1,
                 "turn": 1,
                 "done": False
@@ -79,11 +87,15 @@ def sample_replay(temp_replays_dir):
                 "terrain": [[0, 0], [0, 0]],
                 "city_owner": [[-1, 0], [-1, -1]],
                 "city_level": [[0, 1], [0, 0]],
+                "city_has_port": [[0, 0], [0, 0]],
                 "units": [
-                    {"type": 1, "pos": [1, 0], "hp": 8, "owner": 0}
+                    {"type": 1, "pos": [1, 0], "hp": 8, "owner": 0, "payload_type": 1}
                 ],
                 "city_population": [[0, 1], [0, 0]],
                 "player_stars": [9, 5],
+                "player_score": [160, 95],
+                "score_breakdown": {"territory": [100, 0], "population": [20, 5], "military": [20, 5], "economy": [20, 85]},
+                "player_techs": [[1, 1, 0, 0], [0, 0, 0, 0]],
                 "current_player": 0,
                 "turn": 2,
                 "done": False
@@ -186,6 +198,46 @@ def test_get_state(client, sample_replay):
     assert "units" in data["state"]
 
 
+def test_get_state_unlocks_all_techs_by_default(client, sample_replay, monkeypatch):
+    """Vérifie que toutes les technos sont renvoyées comme débloquées par défaut."""
+    game_id, _ = sample_replay
+    monkeypatch.setenv("POLYTOPIA_VIEW_UNLOCK_ALL_TECHS", "1")
+
+    response = client.get(f"/games/{game_id}/state/0")
+    assert response.status_code == 200
+    state = response.json()["state"]
+    assert state["player_techs"] == [
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+    ]
+
+
+def test_get_state_can_disable_unlock_override(client, sample_replay, monkeypatch):
+    """On peut désactiver le débloquage forcé via un paramètre de requête."""
+    game_id, replay_data = sample_replay
+    monkeypatch.setenv("POLYTOPIA_VIEW_UNLOCK_ALL_TECHS", "1")
+
+    response = client.get(f"/games/{game_id}/state/0?unlock_all_techs=false")
+    assert response.status_code == 200
+    state = response.json()["state"]
+    assert state["player_techs"] == replay_data["states"][0]["player_techs"]
+
+
+def test_get_state_visibility_mask(client, sample_replay, monkeypatch):
+    """Le backend fournit un masque de visibilité lorsque le reveal est actif."""
+    game_id, _ = sample_replay
+    monkeypatch.setenv("POLYTOPIA_VIEW_REVEAL_MAP", "1")
+
+    response = client.get(f"/games/{game_id}/state/0")
+    assert response.status_code == 200
+    visibility = response.json()["state"]["visibility_mask"]
+    assert visibility == [[1, 1], [1, 1]]
+
+    response_hidden = client.get(f"/games/{game_id}/state/0?reveal_map=false")
+    assert response_hidden.status_code == 200
+    assert response_hidden.json()["state"]["visibility_mask"] is None
+
+
 def test_get_state_invalid_turn_negative(client, sample_replay):
     """Test l'erreur 400 pour un tour négatif."""
     game_id, _ = sample_replay
@@ -253,3 +305,4 @@ def test_live_perfection_flow(client):
     assert end_turn_response.status_code == 200
     end_data = end_turn_response.json()
     assert "state" in end_data
+    assert end_data["state"]["current_player"] == 0

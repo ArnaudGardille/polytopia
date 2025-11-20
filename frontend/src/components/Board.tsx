@@ -1,6 +1,7 @@
-import { useMemo, useEffect, useState } from 'react';
-import type { GameStateView } from '../types';
+import { useMemo, useEffect, useState, type MouseEvent } from 'react';
+import type { GameStateView, CityView } from '../types';
 import { getTerrainIcon, getPlayerColor, getUnitIcon, getCityIcon } from '../utils/iconMapper';
+import { HARVEST_ZONE_OFFSETS } from '../data/resources';
 
 // Proportions tirées du sprite haute résolution (Grass.png)
 const BASE_TILE_WIDTH = 2067;
@@ -21,6 +22,11 @@ interface BoardProps {
   selectedUnitId?: number | null;
   selectableUnitOwner?: number | null;
   onSelectUnit?: (unitId: number, owner: number) => void;
+  onDeselectUnit?: () => void;
+  selectedCityPos?: [number, number] | null;
+  selectableCityOwner?: number | null;
+  onSelectCity?: (city: CityView) => void;
+  onDeselectCity?: () => void;
   moveTargets?: MoveTarget[];
   onSelectMoveTarget?: (target: MoveTarget) => void;
 }
@@ -34,20 +40,17 @@ function hexToPixel(x: number, y: number, tileWidth: number): [number, number] {
   return [pixelX, pixelY];
 }
 
-// Conversion offset odd-r vers coordonnées diagonales (cube axes x et y)
-function offsetToDiagonalAxes(x: number, y: number): [number, number] {
-  const cubeX = x - (y - (y & 1)) / 2;
-  const cubeZ = y;
-  const cubeY = -cubeX - cubeZ;
-  return [cubeX, cubeY];
-}
-
 export function Board({
   state,
   cellSize: propCellSize,
   selectedUnitId,
   selectableUnitOwner,
   onSelectUnit,
+  onDeselectUnit,
+  selectedCityPos,
+  selectableCityOwner,
+  onSelectCity,
+  onDeselectCity,
   moveTargets,
   onSelectMoveTarget,
 }: BoardProps) {
@@ -114,26 +117,46 @@ export function Board({
     return map;
   }, [moveTargets]);
 
+  const handleBackgroundClick = () => {
+    if (onDeselectUnit) {
+      onDeselectUnit();
+    }
+    if (onDeselectCity) {
+      onDeselectCity();
+    }
+  };
+
+  const harvestZone = useMemo(() => {
+    if (!selectedCityPos) return null;
+    const [cityX, cityY] = selectedCityPos;
+    const zone = new Set<string>();
+    HARVEST_ZONE_OFFSETS.forEach(([dx, dy]) => {
+      const tx = cityX + dx;
+      const ty = cityY + dy;
+      if (tx >= 0 && tx < width && ty >= 0 && ty < height) {
+        zone.add(`${tx}-${ty}`);
+      }
+    });
+    return zone;
+  }, [selectedCityPos, width, height]);
+
   return (
-    <div className="board-container">
+    <div className="board-container" onClick={handleBackgroundClick}>
       <svg
         className="board-svg"
         viewBox={viewBox}
         xmlns="http://www.w3.org/2000/svg"
       >
-        {/* Grille de terrain avec hexagones */}
+        {/* Grille de terrain */}
         {terrain.map((row, y) =>
           row.map((terrainType, x) => {
             const terrainIcon = getTerrainIcon(terrainType);
             const [centerX, centerY] = hexToPixel(x, y, tileWidth);
-            const [diagX, diagY] = offsetToDiagonalAxes(x, y);
             const imageX = centerX - tileWidth / 2;
             const imageY = centerY - tileHeight / 2;
-            const moveTarget = moveTargetsMap?.get(`${x}-${y}`);
-            
+            const inHarvestZone = harvestZone?.has(`${x}-${y}`) ?? false;
             return (
               <g key={`terrain-${x}-${y}`}>
-                {/* Image de terrain si disponible */}
                 {terrainIcon && (
                   <image
                     href={terrainIcon}
@@ -144,68 +167,84 @@ export function Board({
                     preserveAspectRatio="xMidYMid meet"
                     opacity="0.9"
                     onError={(e) => {
-                      // Cacher l'image si elle ne charge pas
                       (e.target as SVGImageElement).style.display = 'none';
                     }}
                   />
                 )}
-                {/* Affichage des coordonnées pour debug */}
-                <text
-                  x={centerX}
-                  y={centerY}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="white"
-                  fontSize={Math.min(tileWidth, tileHeight) * 0.15}
-                  fontWeight="bold"
-                  stroke="black"
-                  strokeWidth={Math.min(tileWidth, tileHeight) * 0.02}
-                  paintOrder="stroke"
-                >
-                  {diagX},{diagY}
-                </text>
-                {moveTarget && (
-                  <g
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (onSelectMoveTarget) {
-                        onSelectMoveTarget(moveTarget);
-                      }
-                    }}
-                    style={{
-                      cursor: onSelectMoveTarget ? 'pointer' : undefined,
-                    }}
-                  >
-                    <circle
-                      cx={centerX}
-                      cy={centerY}
-                      r={Math.min(tileWidth, tileHeight) * 0.32}
-                      fill={
-                        moveTarget.type === 'attack'
-                          ? 'rgba(239,68,68,0.35)'
-                          : 'rgba(59,130,246,0.35)'
-                      }
-                      stroke={
-                        moveTarget.type === 'attack' ? '#ef4444' : '#3b82f6'
-                      }
-                      strokeWidth={Math.min(tileWidth, tileHeight) * 0.04}
-                    />
-                    <circle
-                      cx={centerX}
-                      cy={centerY}
-                      r={Math.min(tileWidth, tileHeight) * 0.18}
-                      fill={
-                        moveTarget.type === 'attack'
-                          ? 'rgba(239,68,68,0.8)'
-                          : 'rgba(59,130,246,0.8)'
-                      }
-                    />
-                  </g>
+                {inHarvestZone && (
+                  <circle
+                    cx={centerX}
+                    cy={centerY + spriteCenterCorrectionY}
+                    r={Math.min(tileWidth, tileHeight) * 0.25}
+                    fill="rgba(251, 191, 36, 0.25)"
+                    stroke="#fbbf24"
+                    strokeWidth={Math.max(1, tileWidth * 0.02)}
+                    pointerEvents="none"
+                  />
                 )}
               </g>
             );
           })
         )}
+
+        {/* Cibles de déplacement au premier plan */}
+        {moveTargetsMap &&
+          [...moveTargetsMap.values()].map((moveTarget) => {
+            const [centerX, centerY] = hexToPixel(
+              moveTarget.x,
+              moveTarget.y,
+              tileWidth
+            );
+            return (
+              <g
+                key={`movetarget-${moveTarget.x}-${moveTarget.y}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (onSelectMoveTarget) {
+                    onSelectMoveTarget(moveTarget);
+                  }
+                }}
+                style={{
+                  cursor: onSelectMoveTarget ? 'pointer' : undefined,
+                }}
+              >
+                <circle
+                  cx={centerX}
+                  cy={centerY}
+                  r={Math.min(tileWidth, tileHeight) * 0.35}
+                  fill={
+                    moveTarget.type === 'attack'
+                      ? 'rgba(239,68,68,0.2)'
+                      : 'rgba(59,130,246,0.2)'
+                  }
+                />
+                <circle
+                  cx={centerX}
+                  cy={centerY}
+                  r={Math.min(tileWidth, tileHeight) * 0.28}
+                  fill={
+                    moveTarget.type === 'attack'
+                      ? 'rgba(239,68,68,0.35)'
+                      : 'rgba(59,130,246,0.35)'
+                  }
+                  stroke={
+                    moveTarget.type === 'attack' ? '#ef4444' : '#3b82f6'
+                  }
+                  strokeWidth={Math.min(tileWidth, tileHeight) * 0.04}
+                />
+                <circle
+                  cx={centerX}
+                  cy={centerY}
+                  r={Math.min(tileWidth, tileHeight) * 0.16}
+                  fill={
+                    moveTarget.type === 'attack'
+                      ? 'rgba(239,68,68,0.75)'
+                      : 'rgba(59,130,246,0.75)'
+                  }
+                />
+              </g>
+            );
+          })}
 
         {/* Villes avec images */}
         {cities.map((city, idx) => {
@@ -218,9 +257,39 @@ export function Board({
           const iconX = centerX - iconSize / 2;
           const iconY = iconCenterY - iconSize / 2;
           const levelBadgeY = iconCenterY + iconSize * 0.2;
-          
+          const isSelected =
+            selectedCityPos?.[0] === x && selectedCityPos?.[1] === y;
+          const isSelectable =
+            typeof selectableCityOwner === 'number'
+              ? selectableCityOwner === city.owner
+              : true;
+          const handleCityClick = (event: MouseEvent<SVGGElement>) => {
+            event.stopPropagation();
+            if (onSelectCity && isSelectable) {
+              onSelectCity(city);
+            }
+          };
+
           return (
-            <g key={`city-${idx}`} className="city-marker">
+            <g
+              key={`city-${idx}`}
+              className="city-marker"
+              onClick={handleCityClick}
+              style={{
+                cursor: onSelectCity && isSelectable ? 'pointer' : undefined,
+              }}
+            >
+              {isSelected && (
+                <circle
+                  cx={centerX}
+                  cy={iconCenterY}
+                  r={Math.min(tileWidth, tileHeight) * 0.38}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth={Math.min(tileWidth, tileHeight) * 0.04}
+                  strokeDasharray="6 4"
+                />
+              )}
               {cityIcon ? (
                 <>
                   {/* Image de ville si disponible */}
@@ -302,7 +371,8 @@ export function Board({
             typeof selectableUnitOwner === 'number'
               ? selectableUnitOwner === unit.owner
               : true;
-          const handleClick = () => {
+          const handleClick = (event: MouseEvent<SVGGElement>) => {
+            event.stopPropagation();
             if (onSelectUnit && isSelectable) {
               onSelectUnit(unitId, unit.owner);
             }
@@ -395,4 +465,3 @@ export function Board({
     </div>
   );
 }
-

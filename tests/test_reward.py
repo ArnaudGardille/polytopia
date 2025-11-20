@@ -10,7 +10,7 @@ from polytopia_jax.core.reward import (
     _count_enemy_units_killed,
     _check_player_won,
 )
-from polytopia_jax.core.state import GameState, UnitType, NO_OWNER
+from polytopia_jax.core.state import GameState, UnitType, NO_OWNER, GameMode
 from polytopia_jax.core.init import init_random, GameConfig
 
 
@@ -157,6 +157,21 @@ def test_check_player_won():
     assert not _check_player_won(state, 0)
 
 
+def test_check_player_won_perfection_uses_scores():
+    """En mode Perfection, la victoire dépend du score."""
+    key = jax.random.PRNGKey(0)
+    config = GameConfig(height=6, width=6, num_players=2, max_units=10)
+    state = init_random(key, config)
+    
+    state = state.replace(
+        done=jnp.array(True),
+        game_mode=jnp.array(GameMode.PERFECTION, dtype=jnp.int32),
+        player_score=jnp.array([200, 150]),
+    )
+    assert _check_player_won(state, 0)
+    assert not _check_player_won(state, 1)
+
+
 def test_compute_reward_all_players():
     """Test le calcul de récompenses pour tous les joueurs."""
     key = jax.random.PRNGKey(42)
@@ -184,6 +199,5 @@ def test_compute_reward_jit_compatible():
     
     # Vérifier que la récompense est un scalaire
     assert reward.shape == () or reward.shape == (1,)
-
 
 

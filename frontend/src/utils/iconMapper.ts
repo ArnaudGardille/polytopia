@@ -20,12 +20,20 @@ export function getTerrainIcon(terrainType: number): string | null {
   switch (terrainType) {
     case TerrainType.PLAIN:
       return '/icons/terrain/Grass.png';
+    case TerrainType.PLAIN_FRUIT:
+      return '/icons/terrain/Field_with_Fruit.png';
     case TerrainType.FOREST:
       return '/icons/terrain/Imperius_ground_with_forest.png';
+    case TerrainType.FOREST_WITH_WILD_ANIMAL:
+      return '/icons/terrain/Imperius_ground_with_forest_with_wild_animal.png';
     case TerrainType.MOUNTAIN:
       return '/icons/terrain/Imperius_ground_with_mountain.png';
+    case TerrainType.MOUNTAIN_WITH_MINE:
+      return '/icons/terrain/Imperius_ground_with_mountain_and_metal.png';
     case TerrainType.WATER_SHALLOW:
       return '/icons/terrain/Shallow_water-1.png';
+    case TerrainType.WATER_SHALLOW_WITH_FISH:
+      return '/icons/terrain/Shallow_water_with_fish-0.png';
     case TerrainType.WATER_DEEP:
       return '/icons/terrain/Ocean.png';
     default:
@@ -95,12 +103,16 @@ export function getPlayerColor(playerId: number): string {
 export function getTerrainColor(terrainType: number): string {
   switch (terrainType) {
     case TerrainType.PLAIN:
+    case TerrainType.PLAIN_FRUIT:
       return '#D4A574'; // Beige/sable
     case TerrainType.FOREST:
+    case TerrainType.FOREST_WITH_WILD_ANIMAL:
       return '#2D5016'; // Vert foncé
     case TerrainType.MOUNTAIN:
+    case TerrainType.MOUNTAIN_WITH_MINE:
       return '#6B7280'; // Gris
     case TerrainType.WATER_SHALLOW:
+    case TerrainType.WATER_SHALLOW_WITH_FISH:
       return '#60A5FA'; // Bleu clair
     case TerrainType.WATER_DEEP:
       return '#3B82F6'; // Bleu foncé
@@ -108,4 +120,3 @@ export function getTerrainColor(terrainType: number): string {
       return '#D4A574';
   }
 }
-

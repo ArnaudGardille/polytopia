@@ -3,11 +3,15 @@
 from typing import NamedTuple
 import jax
 import jax.numpy as jnp
-from .state import GameState, TerrainType, UnitType, NO_OWNER
+from .state import GameState, TerrainType, UnitType, NO_OWNER, GameMode, ResourceType
 from .actions import Direction, get_action_direction_delta
+from .score import update_scores
 
 STARTING_PLAYER_STARS = 5
 INITIAL_CITY_POPULATION = 1
+FRUIT_PROBABILITY = 0.3
+FISH_PROBABILITY = 0.35
+ORE_PROBABILITY = 0.4
 
 
 class GameConfig(NamedTuple):
@@ -17,9 +21,15 @@ class GameConfig(NamedTuple):
     num_players: int = 2
     max_units: int = 50
     # Probabilités de terrain (doivent sommer à 1.0)
-    prob_plain: float = 0.6
+    prob_plain: float = 0.45
     prob_forest: float = 0.2
-    prob_water: float = 0.2
+    prob_mountain: float = 0.15
+    prob_water: float = 0.15
+    prob_water_deep: float = 0.05
+    # Probabilité d'apparition des animaux sauvages (pure esthétique)
+    resource_prob_wild_animal: float = 0.3
+    game_mode: GameMode = GameMode.DOMINATION
+    max_turns: int = 30
 
 
 def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
@@ -32,7 +42,7 @@ def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
     Returns:
         GameState initialisé
     """
-    key, terrain_key, capital_key, unit_key = jax.random.split(key, 4)
+    key, terrain_key, resource_key, overlay_key, capital_key, unit_key = jax.random.split(key, 6)
     
     # Créer état vide
     state = GameState.create_empty(
@@ -45,21 +55,28 @@ def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
     # Générer terrain
     state = _generate_terrain(state, terrain_key, config)
     
+    # Générer les ressources naturelles
+    state = _generate_resources(state, resource_key)
+    state = _apply_resource_overlays(state, overlay_key, config)
+    
     # Placer les capitales
     state = _place_capitals(state, capital_key, config)
     
     # Initialiser les unités de départ
     state = _init_starting_units(state, unit_key, config)
     
-    # Donne des étoiles de départ à chaque joueur
+    # Donne des étoiles de départ à chaque joueur et configure le mode de jeu
     state = state.replace(
         player_stars=jnp.full(
             (config.num_players,),
             STARTING_PLAYER_STARS,
             dtype=jnp.int32,
-        )
+        ),
+        game_mode=jnp.array(int(config.game_mode), dtype=jnp.int32),
+        max_turns=jnp.array(config.max_turns, dtype=jnp.int32),
     )
     
+    state = update_scores(state)
     return state
 
 
@@ -69,30 +86,112 @@ def _generate_terrain(
     config: GameConfig
 ) -> GameState:
     """Génère le terrain de manière procédurale."""
-    # Générer des valeurs aléatoires uniformes
     rand = jax.random.uniform(key, shape=(state.height, state.width))
     
-    # Assigner les types de terrain selon les probabilités
     terrain = jnp.zeros_like(state.terrain, dtype=jnp.int32)
-    
-    # Plaine par défaut
-    terrain = jnp.where(rand < config.prob_plain, TerrainType.PLAIN, terrain)
-    
-    # Forêt
-    threshold_forest = config.prob_plain + config.prob_forest
+    threshold_plain = config.prob_plain
+    threshold_forest = threshold_plain + config.prob_forest
+    threshold_mountain = threshold_forest + config.prob_mountain
+    threshold_shallow = threshold_mountain + config.prob_water
+    threshold_deep = threshold_shallow + config.prob_water_deep
+
+    terrain = jnp.where(rand < threshold_plain, TerrainType.PLAIN, terrain)
     terrain = jnp.where(
-        (rand >= config.prob_plain) & (rand < threshold_forest),
+        (rand >= threshold_plain) & (rand < threshold_forest),
         TerrainType.FOREST,
-        terrain
+        terrain,
     )
-    
-    # Eau peu profonde
     terrain = jnp.where(
-        rand >= threshold_forest,
-        TerrainType.WATER_SHALLOW,
-        terrain
+        (rand >= threshold_forest) & (rand < threshold_mountain),
+        TerrainType.MOUNTAIN,
+        terrain,
     )
-    
+    terrain = jnp.where(
+        (rand >= threshold_mountain) & (rand < threshold_shallow),
+        TerrainType.WATER_SHALLOW,
+        terrain,
+    )
+    terrain = jnp.where(
+        (rand >= threshold_shallow) & (rand < threshold_deep),
+        TerrainType.WATER_DEEP,
+        terrain,
+    )
+
+    return state.replace(terrain=terrain)
+
+
+def _generate_resources(
+    state: GameState,
+    key: jax.random.PRNGKey,
+) -> GameState:
+    """Génère les ressources naturelles sur la carte."""
+    resource_type = state.resource_type
+    resource_available = state.resource_available
+    key_fruit, key_fish, key_ore = jax.random.split(key, 3)
+
+    def _apply_mask(current_type, current_available, mask, value):
+        placement = mask & (current_type == int(ResourceType.NONE))
+        new_type = jnp.where(placement, int(value), current_type)
+        new_available = jnp.where(placement, True, current_available)
+        return new_type, new_available
+
+    fruit_rand = jax.random.uniform(key_fruit, shape=state.terrain.shape)
+    fruit_mask = (
+        (state.terrain == TerrainType.PLAIN)
+        & (fruit_rand < FRUIT_PROBABILITY)
+    )
+    resource_type, resource_available = _apply_mask(
+        resource_type, resource_available, fruit_mask, ResourceType.FRUIT
+    )
+
+    fish_rand = jax.random.uniform(key_fish, shape=state.terrain.shape)
+    fish_mask = (
+        (state.terrain == TerrainType.WATER_SHALLOW)
+        & (fish_rand < FISH_PROBABILITY)
+    )
+    resource_type, resource_available = _apply_mask(
+        resource_type, resource_available, fish_mask, ResourceType.FISH
+    )
+
+    ore_rand = jax.random.uniform(key_ore, shape=state.terrain.shape)
+    ore_mask = (
+        (state.terrain == TerrainType.MOUNTAIN)
+        & (ore_rand < ORE_PROBABILITY)
+    )
+    resource_type, resource_available = _apply_mask(
+        resource_type, resource_available, ore_mask, ResourceType.ORE
+    )
+
+    return state.replace(
+        resource_type=resource_type,
+        resource_available=resource_available,
+    )
+
+
+def _apply_resource_overlays(
+    state: GameState,
+    key: jax.random.PRNGKey,
+    config: GameConfig,
+) -> GameState:
+    """Adapte les tuiles de terrain pour refléter visuellement les ressources."""
+    terrain = state.terrain
+    resource_type = state.resource_type
+    resource_int = resource_type.astype(jnp.int32)
+
+    fruit_mask = resource_int == int(ResourceType.FRUIT)
+    fish_mask = resource_int == int(ResourceType.FISH)
+    ore_mask = resource_int == int(ResourceType.ORE)
+
+    terrain = jnp.where(fruit_mask, TerrainType.PLAIN_FRUIT, terrain)
+    terrain = jnp.where(fish_mask, TerrainType.WATER_SHALLOW_WITH_FISH, terrain)
+    terrain = jnp.where(ore_mask, TerrainType.MOUNTAIN_WITH_MINE, terrain)
+
+    forest_mask = terrain == TerrainType.FOREST
+    if config.resource_prob_wild_animal > 0:
+        animal_roll = jax.random.uniform(key, shape=terrain.shape)
+        spawn_mask = forest_mask & (animal_roll < config.resource_prob_wild_animal)
+        terrain = jnp.where(spawn_mask, TerrainType.FOREST_WITH_WILD_ANIMAL, terrain)
+
     return state.replace(terrain=terrain)
 
 
@@ -108,6 +207,8 @@ def _place_capitals(
     city_owner = state.city_owner.copy()
     city_level = state.city_level.copy()
     city_population = state.city_population.copy()
+    resource_type = state.resource_type.copy()
+    resource_available = state.resource_available.copy()
     
     # Calculer les positions des capitales
     # Joueur 0 : coin supérieur gauche
@@ -137,11 +238,15 @@ def _place_capitals(
             city_population = city_population.at[y, x].set(INITIAL_CITY_POPULATION)
             # S'assurer que la case est une plaine
             state = state.replace(terrain=state.terrain.at[y, x].set(TerrainType.PLAIN))
+            resource_type = resource_type.at[y, x].set(int(ResourceType.NONE))
+            resource_available = resource_available.at[y, x].set(False)
     
     return state.replace(
         city_owner=city_owner,
         city_level=city_level,
         city_population=city_population,
+        resource_type=resource_type,
+        resource_available=resource_available,
     )
 
 
@@ -156,6 +261,7 @@ def _init_starting_units(
     units_hp = state.units_hp.copy()
     units_owner = state.units_owner.copy()
     units_active = state.units_active.copy()
+    units_payload = state.units_payload_type.copy()
     
     unit_idx = 0
     
@@ -184,6 +290,7 @@ def _init_starting_units(
             units_hp = units_hp.at[unit_idx].set(10)  # 10 PV pour un guerrier
             units_owner = units_owner.at[unit_idx].set(player_id)
             units_active = units_active.at[unit_idx].set(True)
+            units_payload = units_payload.at[unit_idx].set(UnitType.WARRIOR)
             unit_idx += 1
     
     return state.replace(
@@ -192,4 +299,5 @@ def _init_starting_units(
         units_hp=units_hp,
         units_owner=units_owner,
         units_active=units_active,
+        units_payload_type=units_payload,
     )
