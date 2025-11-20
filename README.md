@@ -98,27 +98,23 @@ Aucune fonction dans `polytopia_jax/core/` ne doit interagir avec l'extérieur (
 
 ## 4. Environnements RL (`rl/`)
 
-Deux wrappers sont fournis :
+Deux wrappers sont prévus :
 
 ### Gymnasium (single-agent)
 
-`rl.gym_env.PolytopiaEnv` expose le joueur 0 tandis que les autres tribus sont contrôlées par les heuristiques IA (mêmes règles que le mode live). Exemple :
+Implémente l'API standard :
 
 ```python
-from rl.gym_env import PolytopiaEnv, SimulationConfig
-
-env = PolytopiaEnv(SimulationConfig(opponents=2, difficulty="hard"))
+env = PolytopiaEnv()
 obs, info = env.reset()
-while True:
-    action = env.action_space.sample()
-    obs, reward, terminated, truncated, info = env.step(action)
-    if terminated or truncated:
-        break
+obs, reward, terminated, truncated, info = env.step(action)
 ```
 
-### PettingZoo (AEC)
+L'observation correspond à une vue normalisée du plateau pour le joueur courant.
 
-`rl.pettingzoo_env.PolytopiaAECEnv` expose le même joueur 0 mais via l'API AEC (tous les autres agents sont résolus automatiquement, ce qui simplifie l'intégration self-play). Les observations et espaces d'actions sont identiques à ceux du wrapper Gym.
+### PettingZoo (multi-agent)
+
+Permet le self-play et les agents indépendants. Support des modes AEC et Parallel.
 
 ---
 
@@ -296,14 +292,9 @@ Cette section détaille les étapes proposées pour rapprocher progressivement l
    - Les replays/API exposent désormais la présence des ports et les métadonnées nécessaires (`city_has_port`, `player_techs`, `payload_type`) afin que le frontend puisse représenter la navigation fidèlement.
 
 7. **Phase 6 – IA et difficultés**  
-   - Développer des heuristiques simples pour les IA (priorité expansion/combat) et appliquer des bonus d'étoiles par niveau de difficulté.  
+   - Développer des heuristiques simples pour les IA (priorité expansion/combat).
    - Supporter plusieurs adversaires simultanés et synchroniser les wrappers RL (`rl/`) avec cette logique multi-agent.  
    - Enregistrer de nouveaux replays de référence pour tester les comportements.
-   
-   **État actuel (Phase 6)**  
-   - Les IA heuristiques déplacent et attaquent automatiquement leurs unités, construisent de nouvelles troupes et jouent leurs tours complets côté backend/live.  
-   - Les difficultés `easy`→`crazy` ajoutent désormais un bonus d'étoiles par tour aux IA ; ce bonus est visible côté API/Frontend et utilisé par les wrappers RL.  
-   - Le dossier `rl/` expose des sessions partagées (`SimulationSession`) ainsi que des wrappers Gymnasium et PettingZoo branchés sur cette logique multi-adversaires.
 
 8. **Phase 7 – Contenus avancés et tribus spéciales**  
    - Implémenter monuments, temples et leur contribution au score.  
@@ -321,4 +312,4 @@ Le backend expose désormais un mode Perfection jouable en temps réel :
 - `POST /live/{game_id}/action` — applique une action encodée (mêmes bits que `core.actions.encode_action`).
 - `POST /live/{game_id}/end_turn` — termine explicitement le tour du joueur humain.
 
-L’interface React permet de lancer ce mode via le bouton PERFECTION → `START GAME`, puis de jouer (sélection des unités, déplacements, attaques, fin de tour). Les IA jouent désormais leurs tours complètes côté serveur (mouvements offensifs basiques + recrutement) et appliquent les bonus d’étoiles liés à la difficulté choisie avant de rendre la main au joueur 0.
+L’interface React permet de lancer ce mode via le bouton PERFECTION → `START GAME`, puis de jouer (sélection des unités, déplacements, attaques, fin de tour). Tant que les IA sont inactives, leurs tours sont automatiquement passés côté serveur pour revenir au joueur 0.
