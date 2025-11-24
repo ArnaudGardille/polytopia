@@ -36,7 +36,7 @@ The battle preview shows the result of an attack. To see how much damage will be
 
 ## Defence Bonus[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D2&uselang=en> "Sign in to edit")]
 
-Certain tiles provide a defence bonus to units on them. Tiles of certain [terrain](<Terrain.md> "Terrain") types provide a defence bonus once the corresponding [technology](</wiki/Technology> "Technology") is researched, and [cities](</wiki/Cities> "Cities") without a city wall (not including uncaptured villages) provide a defence bonus to friendly units (invading units besieging a city do not receive any defence bonus). Units with a defence bonus receive less damage and deal more retaliation damage. A single shield around the unit's HP indicates that the unit has a defence bonus. 
+Certain tiles provide a defence bonus to units on them. Tiles of certain [terrain](</wiki/Terrain> "Terrain") types provide a defence bonus once the corresponding [technology](</wiki/Technology> "Technology") is researched, and [cities](</wiki/Cities> "Cities") without a city wall (not including uncaptured villages) provide a defence bonus to friendly units (invading units besieging a city do not receive any defence bonus). Units with a defence bonus receive less damage and deal more retaliation damage. A single shield around the unit's HP indicates that the unit has a defence bonus. 
 
 The [city wall](</wiki/City_wall> "City wall") provides a defence bonus much stronger than the standard defence bonus. A double shield around a unit's HP indicates that the unit is standing in a city with a city wall. 
 
@@ -83,7 +83,7 @@ When _attackResult_ is an odd number, this will cause the received splash damage
 
 ## Vision[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D5&uselang=en> "Sign in to edit")]
 
-No retaliation occurs if the attacker kills the unit being attacked or the unit being attacked cannot see the attacker (the attacker is hidden by [fog](<Terrain.md> "Terrain")). 
+No retaliation occurs if the attacker kills the unit being attacked or the unit being attacked cannot see the attacker (the attacker is hidden by [fog](</wiki/Terrain> "Terrain")). 
 
 Mountains provide extra sight (a two tile radius instead of the normal one). 
 
@@ -95,7 +95,7 @@ Units with the scout skill can see two tiles in every direction.
 
 The Boost icon
 
-The [Shaman](</wiki/Shaman> "Shaman"), a unit unique to the [Cymanti](<../tribes/Cymanti.md> "Cymanti") [tribe](<../general/Tribes.md> "Tribe"), can boost friendly units. Boosted units get +0.5 attack and +1 movement. This effect lasts until the boosted unit attacks another unit, is attacked, uses most abilities, examines a ruin, captures a village/city, or is poisoned. 
+The [Shaman](</wiki/Shaman> "Shaman"), a unit unique to the [Cymanti](</wiki/Cymanti> "Cymanti") [tribe](</wiki/Tribe> "Tribe"), can boost friendly units. Boosted units get +0.5 attack and +1 movement. This effect lasts until the boosted unit attacks another unit, is attacked, uses most abilities, examines a ruin, captures a village/city, or is poisoned. 
 
 ## Poison[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D7&uselang=en> "Sign in to edit")]
 
@@ -117,8 +117,8 @@ Poison is applied by Cymanti [units](</wiki/Units> "Units") and [buildings](</wi
   
 ---  
 Game Mechanics  
-Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](<../general/Update_History.md> "Update History")  
-General|  **Combat** , [Easter Eggs](</wiki/Easter_Eggs> "Easter Eggs"), [Game Modes](<Game_Modes.md> "Game Modes"), [Map Generation](<Map_Generation.md> "Map Generation"), [Movement](</wiki/Movement> "Movement"), [Ruin](<../general/Ruin.md> "Ruin"), [Score](</wiki/Score> "Score"), [Star](</wiki/Star> "Star"), [Technology](</wiki/Technology> "Technology"), [Terrain](<Terrain.md> "Terrain"), [Tribes](</wiki/Tribes> "Tribes")  
+Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](</wiki/Update_History> "Update History")  
+General|  **Combat** , [Easter Eggs](</wiki/Easter_Eggs> "Easter Eggs"), [Game Modes](</wiki/Game_Modes> "Game Modes"), [Map Generation](</wiki/Map_Generation> "Map Generation"), [Movement](</wiki/Movement> "Movement"), [Ruin](</wiki/Ruin> "Ruin"), [Score](</wiki/Score> "Score"), [Star](</wiki/Star> "Star"), [Technology](</wiki/Technology> "Technology"), [Terrain](</wiki/Terrain> "Terrain"), [Tribes](</wiki/Tribes> "Tribes")  
 [Abilities](</wiki/Abilities> "Abilities")|  [Burn Forest](</wiki/Burn_Forest> "Burn Forest"), [Clear Forest](</wiki/Clear_Forest> "Clear Forest"), [Destroy](</wiki/Destroy> "Destroy"), [Grow Forest](</wiki/Grow_Forest> "Grow Forest"), [Starfish Harvesting](</wiki/Starfish_Harvesting> "Starfish Harvesting"), [Whale Hunting](</wiki/Whale_Hunting> "Whale Hunting")  
 [Buildings](</wiki/Buildings> "Buildings")|  [Buildings](</wiki/Buildings> "Buildings"), [Bridge](</wiki/Bridge> "Bridge"), [Embassy](</wiki/Embassy> "Embassy"), [Roads](</wiki/Roads_\(Building\)> "Roads \(Building\)"), [Temples](</wiki/Temples> "Temples")  
 [City](</wiki/City> "City")|  [City](</wiki/City> "City"), [City Connection](</wiki/City_Connection> "City Connection"), [City Upgrades](</wiki/Category:City_Upgrades> "Category:City Upgrades"), [Population](</wiki/Population> "Population")  

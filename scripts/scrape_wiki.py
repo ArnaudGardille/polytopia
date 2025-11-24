@@ -37,6 +37,8 @@ class PolytopiaWikiScraper:
         self.visited_urls: Set[str] = set()
         # Mapping URL -> chemin local du fichier (pour conversion des liens)
         self.url_to_filepath: Dict[str, str] = {}
+        # Mapping fichier -> mappings d'images (URL originale -> chemin local)
+        self.file_image_paths: Dict[str, Dict[str, str]] = {}
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'PolytopiaKnowledgeBaseScraper/1.0 (Educational/Research Purpose)'
@@ -401,13 +403,14 @@ class PolytopiaWikiScraper:
         
         return "\n".join(markdown_table)
     
-    def extract_content(self, soup: BeautifulSoup, current_category: str = 'general') -> Dict[str, any]:
+    def extract_content(self, soup: BeautifulSoup, current_category: str = 'general', current_subcategory: str = None) -> Dict[str, any]:
         """
         Extrait le contenu principal d'une page wiki.
         
         Args:
             soup: BeautifulSoup object de la page
             current_category: Catégorie de la page actuelle (pour les liens relatifs)
+            current_subcategory: Sous-catégorie de la page actuelle
         
         Returns:
             Dictionnaire avec title, content, images, tables
@@ -415,7 +418,8 @@ class PolytopiaWikiScraper:
         result = {
             'title': '',
             'content': '',
-            'links': []
+            'links': [],
+            'image_paths': {}  # Mapping URL originale -> chemin local pour mise à jour ultérieure
         }
         
         # Extraire le titre
@@ -432,7 +436,7 @@ class PolytopiaWikiScraper:
         for element in content_div.find_all(['script', 'style', 'nav']):
             element.decompose()
         
-        # Traiter les images
+        # Traiter les images - stocker les mappings pour mise à jour ultérieure
         for img in content_div.find_all('img'):
             # Essayer plusieurs attributs pour trouver l'URL de l'image
             img_url = (img.get('src') or 
@@ -442,7 +446,7 @@ class PolytopiaWikiScraper:
             
             if img_url:
                 # Nettoyer l'URL (enlever les paramètres de taille si présents)
-                # Les URLs Fandom peuvent avoir des paramètres comme ?width=300
+                original_img_url = img_url
                 if '?' in img_url:
                     img_url = img_url.split('?')[0]
                 
@@ -455,7 +459,10 @@ class PolytopiaWikiScraper:
                 # Télécharger l'image et obtenir le chemin local
                 local_path = self.download_image(img_url, alt_text)
                 
-                # Mettre à jour la source dans le HTML
+                # Stocker le mapping pour mise à jour ultérieure dans le markdown
+                result['image_paths'][original_img_url] = local_path
+                
+                # Mettre à jour la source dans le HTML (sera converti en markdown)
                 img['src'] = local_path
         
         # Traiter les tableaux - les convertir en markdown
@@ -465,7 +472,7 @@ class PolytopiaWikiScraper:
                 # Remplacer le tableau par une balise temporaire
                 table.replace_with(soup.new_string(f"\n\n{markdown_table}\n\n"))
         
-        # Extraire et remplacer les liens internes vers d'autres pages wiki
+        # Extraire les liens internes vers d'autres pages wiki (ne pas les remplacer ici)
         for link in content_div.find_all('a', href=True):
             href = link['href']
             if href.startswith('/wiki/'):
@@ -481,18 +488,13 @@ class PolytopiaWikiScraper:
                 # Ajouter à la liste des liens à scraper
                 if full_url not in self.visited_urls:
                     result['links'].append(full_url)
-                
-                # Remplacer le lien par un chemin local si disponible
-                local_link = self.convert_wiki_link_to_local(clean_href, current_category)
-                if local_link != clean_href:
-                    link['href'] = local_link
         
         # Convertir en markdown
         html_content = str(content_div)
         markdown_content = self.html_converter.handle(html_content)
         
-        # Note: Les liens seront mis à jour dans update_all_links() après le scraping complet
-        # pour s'assurer que toutes les pages cibles ont été scrapées
+        # Note: Les liens et images seront mis à jour dans update_all_links() et update_all_images()
+        # après le scraping complet pour s'assurer que tous les chemins sont corrects
         
         # Nettoyer le markdown
         markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)
@@ -522,8 +524,8 @@ class PolytopiaWikiScraper:
             # Déterminer la catégorie et sous-catégorie AVANT extract_content
             category, subcategory = self.get_page_category(url)
             
-            # Extraire le contenu avec la catégorie
-            content = self.extract_content(soup, current_category=category)
+            # Extraire le contenu avec la catégorie et sous-catégorie
+            content = self.extract_content(soup, current_category=category, current_subcategory=subcategory)
             
             if not content['title']:
                 print("  ⚠️  Pas de titre trouvé, page ignorée")
@@ -546,6 +548,10 @@ class PolytopiaWikiScraper:
             
             # Enregistrer le mapping URL -> fichier local
             self.url_to_filepath[url] = relative_path
+            
+            # Enregistrer les mappings d'images pour ce fichier
+            if content.get('image_paths'):
+                self.file_image_paths[relative_path] = content['image_paths']
             
             # Construire le contenu markdown avec métadonnées
             markdown_output = f"""# {content['title']}
@@ -648,6 +654,76 @@ class PolytopiaWikiScraper:
         # Mettre à jour tous les liens dans les fichiers markdown
         print(f"\n🔗 Mise à jour des liens internes...")
         self.update_all_links()
+        
+        # Mettre à jour tous les chemins d'images dans les fichiers markdown
+        print(f"\n🖼️  Mise à jour des chemins d'images...")
+        self.update_all_images()
+    
+    def update_all_images(self):
+        """
+        Met à jour tous les chemins d'images dans les fichiers markdown pour utiliser des chemins relatifs corrects.
+        """
+        updated_files = 0
+        
+        # Parcourir tous les fichiers markdown
+        for md_file in self.output_dir.rglob("*.md"):
+            try:
+                relative_path = md_file.relative_to(self.output_dir)
+                
+                # Vérifier si ce fichier a des images mappées
+                if relative_path.as_posix() not in self.file_image_paths:
+                    continue
+                
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                original_content = content
+                image_mappings = self.file_image_paths[relative_path.as_posix()]
+                
+                # Calculer la profondeur du fichier (nombre de niveaux de dossiers)
+                depth = len(relative_path.parts) - 1  # -1 car on exclut le nom du fichier
+                
+                # Pour chaque image mappée, remplacer le chemin
+                for original_url, local_path in image_mappings.items():
+                    # Le chemin local est "images/filename.ext"
+                    # On doit le convertir en chemin relatif depuis le fichier markdown
+                    if depth > 0:
+                        # Calculer le chemin relatif correct
+                        relative_image_path = "../" * depth + local_path
+                    else:
+                        relative_image_path = local_path
+                    
+                    # Échapper le chemin local pour les regex
+                    escaped_path = re.escape(local_path)
+                    
+                    # Remplacer toutes les occurrences du chemin local par le chemin relatif
+                    # Le chemin peut apparaître dans différents formats markdown
+                    patterns = [
+                        # Format markdown standard: ![alt](images/file.png)
+                        (rf'!\[([^\]]*)\]\(({escaped_path})\)', rf'![\1]({relative_image_path})'),
+                        # Format markdown avec lien: [![alt](images/file.png)](url)
+                        (rf'\[!\[([^\]]*)\]\(({escaped_path})\)', rf'[![\1]({relative_image_path})'),
+                        # Format HTML: <img src="images/file.png">
+                        (rf'<img([^>]*?)src=["\']({escaped_path})["\']', rf'<img\1src="{relative_image_path}"'),
+                        # Format HTML sans guillemets: <img src=images/file.png>
+                        (rf'<img([^>]*?)src=({escaped_path})([^>]*?)>', rf'<img\1src={relative_image_path}\3>'),
+                        # Format markdown simple: (images/file.png)
+                        (rf'\(({escaped_path})\)', f'({relative_image_path})'),
+                    ]
+                    
+                    for pattern, replacement in patterns:
+                        content = re.sub(pattern, replacement, content)
+                
+                # Sauvegarder si modifié
+                if content != original_content:
+                    with open(md_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                    updated_files += 1
+                    
+            except Exception as e:
+                print(f"  ⚠️  Erreur lors de la mise à jour des images dans {md_file}: {e}")
+        
+        print(f"  ✓ {updated_files} fichiers mis à jour")
     
     def update_all_links(self):
         """

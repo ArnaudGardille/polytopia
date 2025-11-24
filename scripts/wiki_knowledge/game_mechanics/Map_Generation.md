@@ -6,8 +6,8 @@
 
 ---
 
-Every game occurs on a unique, randomly generated square map. Maps come in six sizes and six water amounts. [Terrain](</wiki/Terrain> "Terrain") is spawned in proportions that vary by [tribe](</wiki/Tribe> "Tribe"). Each tribe has a unique set of spawn rates and unique aesthetics for terrain and resources. During the initial map generation, the land is distributed roughly equally between all tribes in the game. 
-
+Every game occurs on a unique, randomly generated square map. Maps come in six sizes and six water amounts. [Terrain](</wiki/Terrain> "Terrain") is spawned in proportions that vary by [tribe](</wiki/Tribe> "Tribe"). Each tribe has a unique set of spawn rates and unique aesthetics for terrain and resources. During the initial map generation, the land is distributed roughly equally between all tribes in the game.   
+  
 ## Contents
 
   * 1 Map Size
