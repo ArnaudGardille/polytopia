@@ -1,5 +1,6 @@
 import { getPlayerColor } from '../utils/iconMapper';
 import type { GameStateView, ReplayMetadata } from '../types';
+import { Scoreboard } from './Scoreboard';
 
 interface HUDProps {
   state: GameStateView;
@@ -103,8 +104,16 @@ export function HUD({
             Suivant →
           </button>
         </div>
+
+        <div className="mt-6">
+          <Scoreboard
+            state={state}
+            highlightPlayer={state.current_player}
+            title="Classement"
+            className="w-full"
+          />
+        </div>
       </div>
     </div>
   );
 }
-

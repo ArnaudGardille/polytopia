@@ -1,0 +1,209 @@
+# Règles et Conventions pour Polytopia-JAX
+
+## Architecture du Projet
+
+### Séparation stricte des responsabilités
+
+Le projet suit une architecture modulaire avec séparation stricte :
+
+1. **`polytopia_jax/core/`** : Moteur de jeu pur en JAX
+   - Aucune dépendance externe (pas d'IO, pas d'état mutable)
+   - Toutes les fonctions doivent être compatibles avec `jit` et `vmap`
+   - Utilise uniquement `jax.numpy` et structures Flax `@struct.dataclass`
+   - Les états sont des pytrees JAX statiques
+
+2. **`polytopia_jax/ai/`** : Stratégies IA
+   - Peut utiliser le moteur core mais reste indépendant
+   - Stratégies disponibles : `rush`, `economy`, `random`, `idle`
+
+3. **`rl/`** : Wrappers pour l'apprentissage par renforcement
+   - Gymnasium (single-agent) et PettingZoo (multi-agent)
+   - Imports conditionnels pour dépendances optionnelles
+
+4. **`polytopia_jax/web/`** : Backend FastAPI
+   - Conversion `GameState` → `GameStateView` (sérialisable)
+   - Gestion des replays et parties live
+   - Aucune logique de jeu, uniquement sérialisation/API
+
+5. **`frontend/`** : Interface React + TypeScript
+   - Aucune logique de jeu, uniquement affichage
+   - Communication via API REST
+   - SVG pour le rendu du plateau
+
+## Conventions de Code Python
+
+### JAX et Flax
+
+- **Toujours utiliser `jax.numpy`** au lieu de `numpy` pour les calculs dans le core
+- **Utiliser `@struct.dataclass`** de Flax pour les structures d'état (pas `@dataclass` standard)
+- **Tous les champs doivent être des arrays JAX** (`jnp.ndarray`) pour permettre `jit` et `vmap`
+- **Pas de mutations** : créer de nouveaux états plutôt que modifier l'existant
+- **Utiliser `jax.lax`** pour les opérations conditionnelles dans les fonctions tracées
+
+### Types et Constantes
+
+- **Enums** : Utiliser `IntEnum` pour les types (UnitType, TerrainType, etc.)
+- **Constantes de taille** : Toujours définir `NUM_TYPES`, `NUM_ACTIONS`, etc. pour les boucles
+- **NO_OWNER** : Utiliser `-1` pour indiquer l'absence de propriétaire
+
+### Nommage
+
+- **Classes** : PascalCase (`GameState`, `ActionType`)
+- **Fonctions** : snake_case (`encode_action`, `legal_actions_mask`)
+- **Constantes** : UPPER_SNAKE_CASE (`MAX_UNIT_TYPES`, `NO_OWNER`)
+- **Fichiers** : snake_case (`state.py`, `actions.py`)
+
+### Actions
+
+- **Encodage** : Les actions sont encodées en un seul entier (30 bits max)
+- **Format** : `ActionType` (3 bits) + paramètres optionnels (unit_id, direction, target_pos, unit_type)
+- **Décodage** : Utiliser `decode_action()` qui gère le contexte tracé
+
+### Système de Grille
+
+- **Coordonnées** : Système de grille simple aligné (x, y), pas hexagonal logique
+- **Directions** : 8 directions avec deltas {-1, 0, 1} en x et {-1, 0, 1} en y
+- **Rendu** : Hexagonal visuel mais coordonnées logiques alignées
+
+## Conventions de Code TypeScript/React
+
+### Structure des Composants
+
+- **Composants fonctionnels** : Toujours utiliser des fonctions, pas de classes
+- **Hooks** : Utiliser les hooks React standards (`useState`, `useEffect`, etc.)
+- **Types** : Définir tous les types dans `types.ts` (pas de types inline)
+
+### Nommage Frontend
+
+- **Composants** : PascalCase (`Board.tsx`, `LiveGameView.tsx`)
+- **Fonctions** : camelCase (`fetchGameState`, `handleAction`)
+- **Types/Interfaces** : PascalCase (`GameStateView`, `UnitView`)
+- **Constantes** : UPPER_SNAKE_CASE ou objets `as const` (`TerrainType`, `UnitType`)
+
+### API Client
+
+- **Fichier unique** : Toutes les fonctions API dans `api.ts`
+- **Types** : Utiliser les types définis dans `types.ts`
+- **Erreurs** : Gérer les erreurs avec try/catch et afficher des messages utilisateur
+
+### Rendu SVG
+
+- **Optimisation mobile** : Le rendu SVG doit être optimisé pour les écrans tactiles
+- **Coordonnées** : Utiliser le système de grille aligné, convertir en coordonnées hexagonales pour l'affichage
+
+## Tests
+
+### Structure des Tests
+
+- **Nommage** : `test_*.py` pour les fichiers, `test_*` pour les fonctions
+- **Organisation** : Miroir de la structure du code (`test_core/`, `test_web/`, `test_ai/`)
+- **Fixtures** : Stocker dans `tests/test_web/fixtures/` pour les données de test
+
+### Bonnes Pratiques
+
+- Tester les transitions d'état élémentaires (`step`, mouvements, combats)
+- Tester les masques d'actions légales
+- Tester la sérialisation/désérialisation
+- Utiliser `pytest` avec `-v` pour la verbosité
+
+## Documentation
+
+### Docstrings Python
+
+- **Format** : Utiliser des docstrings Google-style
+- **Sections** : Inclure `Args:`, `Returns:`, `Raises:` si nécessaire
+- **Exemples** : Ajouter des exemples pour les fonctions complexes
+
+### Commentaires
+
+- **Phase** : Documenter la phase de développement (Phase 0, Phase 1, etc.)
+- **Limitations** : Mentionner les limitations connues dans les docstrings
+- **TODO** : Utiliser `# TODO:` pour les améliorations futures
+
+## Gestion des Versions et Phases
+
+Le projet suit une feuille de route par phases :
+
+- **Phase 0** : MVP avec unités WARRIOR uniquement ✅
+- **Phase 1** : Boucle économique minimale ✅
+- **Phase 2** : Progression des villes et scoring ✅
+- **Phase 3** : Arbre technologique ✅
+- **Phase 4** : Diversité d'unités terrestres ✅
+- **Phase 5** : Navigation et terrains avancés ✅
+- **Phase 6** : IA et difficultés ✅
+- **Phase 7** : Contenus avancés 🚧
+
+Lors de l'ajout de nouvelles fonctionnalités, vérifier la phase actuelle et documenter les limitations.
+
+## Dépendances
+
+### Backend
+
+- **Obligatoires** : `jax`, `jaxlib`, `flax`, `numpy`, `fastapi`, `uvicorn`, `pydantic`
+- **Optionnelles** : `gymnasium`, `pettingzoo` (imports conditionnels)
+
+### Frontend
+
+- **Core** : `react`, `react-dom`, `typescript`
+- **Build** : `vite`, `tailwindcss`
+- **Dev** : `@typescript-eslint/*`, `eslint`
+
+## Commandes Utiles
+
+### Backend
+
+```bash
+# Activer l'environnement virtuel
+source venv/bin/activate
+
+# Installer en mode développement
+pip install -e .
+
+# Lancer le serveur
+uvicorn polytopia_jax.web.api:app --reload
+
+# Tests
+pytest tests/ -v
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+npm run build
+```
+
+## Règles Importantes
+
+1. **Ne jamais mélanger les couches** : Le core ne doit jamais importer web ou frontend
+2. **Pas d'IO dans le core** : Aucune lecture/écriture de fichiers dans `polytopia_jax/core/`
+3. **Sérialisation séparée** : La conversion `GameState` → JSON se fait uniquement dans `web/`
+4. **Types synchronisés** : Les types TypeScript doivent correspondre aux modèles Pydantic
+5. **Tests avant commit** : Toujours exécuter les tests avant de commiter
+
+## Patterns Spécifiques au Projet
+
+### Masques d'Actions
+
+- Toujours vérifier les actions légales avec `legal_actions_mask()`
+- Le masque doit être calculé côté core, pas côté web/frontend
+
+### Gestion des Unités
+
+- Utiliser des tableaux de taille fixe `[N_units_max]` avec un flag `units_active`
+- Les unités inactives ont `units_active[i] = False`
+
+### Gestion des Villes
+
+- Les villes sont stockées dans des arrays `[H, W]`
+- `city_owner[i, j] = -1` signifie pas de ville
+- `city_level[i, j] = 0` signifie pas de ville ou ville de niveau 0
+
+### Scores et Récompenses
+
+- Les scores sont calculés dans `core/score.py`
+- Les récompenses RL sont dans `core/reward.py`
+- Ne pas mélanger les deux concepts
+

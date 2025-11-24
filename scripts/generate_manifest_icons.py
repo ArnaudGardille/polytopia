@@ -64,3 +64,4 @@ if __name__ == "__main__":
     generate_manifest_icons()
     print("✨ Icônes du manifest générées avec succès !")
 
+

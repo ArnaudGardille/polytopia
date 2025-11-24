@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import asyncio
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +34,7 @@ from .live_game_store import (
     end_turn as end_live_turn,
     serialize_session,
     LiveGameNotFound,
+    load_all_sessions,
 )
 from .view_options import (
     ViewOptions,
@@ -55,6 +57,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Charger toutes les parties live au démarrage
+@app.on_event("startup")
+async def startup_event():
+    """Charge toutes les parties live sauvegardées au démarrage."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Chargement des parties live sauvegardées...")
+    load_all_sessions()
+    logger.info("Chargement terminé")
+
+
+# Middleware pour logger toutes les requêtes
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import logging
+    import time
+    logger = logging.getLogger(__name__)
+    
+    start_time = time.time()
+    logger.info(f"[HTTP] {request.method} {request.url.path}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        logger.info(f"[HTTP] {request.method} {request.url.path} - {response.status_code} - {process_time:.3f}s")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(f"[HTTP] {request.method} {request.url.path} - ERROR après {process_time:.3f}s: {e}")
+        raise
 
 
 @app.get("/", tags=["Root"])
@@ -212,7 +245,7 @@ async def get_state(
         )
 
 
-@app.post("/live/perfection", response_model=LiveGameResponse, tags=["Live"])
+@app.post("/live/perfection", tags=["Live"])
 async def start_live_perfection_game(config: LiveGameConfig):
     """Crée une nouvelle partie live du mode Perfection."""
     view_options = resolve_view_options(
@@ -222,13 +255,14 @@ async def start_live_perfection_game(config: LiveGameConfig):
     session = create_perfection_game(
         opponents=config.opponents,
         difficulty=config.difficulty,
+        strategy=config.strategy,
         seed=config.seed,
         view_options=view_options,
     )
     return _session_to_response(session, view_options)
 
 
-@app.get("/live/{game_id}", response_model=LiveGameResponse, tags=["Live"])
+@app.get("/live/{game_id}", tags=["Live"])
 async def get_live_game_state(
     game_id: str,
     reveal_map: Optional[bool] = None,
@@ -247,7 +281,7 @@ async def get_live_game_state(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
-@app.post("/live/{game_id}/action", response_model=LiveGameResponse, tags=["Live"])
+@app.post("/live/{game_id}/action", tags=["Live"])
 async def post_live_action(
     game_id: str,
     payload: LiveActionPayload,
@@ -255,46 +289,139 @@ async def post_live_action(
     unlock_all_techs: Optional[bool] = None,
 ):
     """Applique une action encodée et retourne le nouvel état."""
+    import logging
+    import time
+    import traceback
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[API] POST /live/{game_id}/action - action_id={payload.action_id}")
+    start = time.time()
+    
     try:
-        session = apply_live_action(game_id, payload.action_id)
+        # Exécuter apply_live_action dans un thread pool pour éviter de bloquer
+        loop = asyncio.get_event_loop()
+        session = await loop.run_in_executor(None, apply_live_action, game_id, payload.action_id)
+        logger.info(f"[API] Action appliquée avec succès en {time.time()-start:.3f}s, sérialisation en cours...")
+        
         view_options = resolve_view_options(
             reveal_map,
             unlock_all_techs,
             base=session.view_options,
         )
-        return _session_to_response(session, view_options)
+        
+        # Exécuter la sérialisation dans un thread pool pour éviter de bloquer
+        response = await loop.run_in_executor(
+            None,
+            _session_to_response,
+            session,
+            view_options
+        )
+        logger.info(f"[API] Réponse prête en {time.time()-start:.3f}s, envoi au client")
+        return response
     except LiveGameNotFound as e:
+        logger.error(f"[API] LiveGameNotFound: {e}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"[API] Erreur inattendue: {type(e).__name__}: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de l'application de l'action: {str(e)}"
+        )
 
 
-@app.post("/live/{game_id}/end_turn", response_model=LiveGameResponse, tags=["Live"])
+@app.post("/live/{game_id}/end_turn", tags=["Live"])
 async def post_live_end_turn(
     game_id: str,
     reveal_map: Optional[bool] = None,
     unlock_all_techs: Optional[bool] = None,
 ):
     """Termine explicitement le tour du joueur humain."""
+    import logging
+    import time
+    import traceback
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[API] POST /live/{game_id}/end_turn")
+    start = time.time()
+    
     try:
-        session = end_live_turn(game_id)
+        logger.info("[API] Appel end_live_turn...")
+        # Exécuter end_live_turn dans un thread pool pour éviter de bloquer
+        loop = asyncio.get_event_loop()
+        session = await loop.run_in_executor(None, end_live_turn, game_id)
+        logger.info(f"[API] end_live_turn terminé en {time.time()-start:.3f}s")
+        
+        logger.info("[API] Résolution des view_options...")
         view_options = resolve_view_options(
             reveal_map,
             unlock_all_techs,
             base=session.view_options,
         )
-        return _session_to_response(session, view_options)
+        
+        logger.info("[API] Conversion en réponse...")
+        # Exécuter la sérialisation dans un thread pool pour éviter de bloquer
+        response = await loop.run_in_executor(
+            None, 
+            _session_to_response, 
+            session, 
+            view_options
+        )
+        logger.info(f"[API] Total: {time.time()-start:.3f}s, envoi au client")
+        return response
     except LiveGameNotFound as e:
+        logger.error(f"[API] LiveGameNotFound: {e}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"[API] Erreur inattendue dans end_turn: {type(e).__name__}: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la fin de tour: {str(e)}"
+        )
 
 
 def _session_to_response(session, view_options: ViewOptions):
-    serialized = serialize_session(session)
-    state_view = GameStateView.from_raw_state(
-        apply_view_overrides(serialized["state"], view_options)
-    )
-    return LiveGameResponse(
-        game_id=serialized["game_id"],
-        max_turns=serialized["max_turns"],
-        opponents=serialized["opponents"],
-        difficulty=serialized["difficulty"],
-        state=state_view,
-    )
+    import logging
+    import time
+    import traceback
+    logger = logging.getLogger(__name__)
+    
+    try:
+        start = time.time()
+        logger.info("[API] serialize_session...")
+        serialized = serialize_session(session)
+        logger.info(f"[API] serialize_session terminé en {time.time()-start:.3f}s")
+        
+        start = time.time()
+        logger.info("[API] apply_view_overrides...")
+        overridden_state = apply_view_overrides(serialized["state"], view_options)
+        logger.info(f"[API] apply_view_overrides terminé en {time.time()-start:.3f}s")
+        
+        start = time.time()
+        logger.info("[API] GameStateView.from_raw_state...")
+        state_view = GameStateView.from_raw_state(overridden_state)
+        logger.info(f"[API] GameStateView.from_raw_state terminé en {time.time()-start:.3f}s")
+        
+        start = time.time()
+        logger.info("[API] Création de LiveGameResponse...")
+        response = LiveGameResponse(
+            game_id=serialized["game_id"],
+            max_turns=serialized["max_turns"],
+            opponents=serialized["opponents"],
+            difficulty=serialized["difficulty"],
+            strategy=serialized["strategy"],
+            state=state_view,
+        )
+        logger.info(f"[API] LiveGameResponse créé en {time.time()-start:.3f}s")
+        
+        # Convertir en dict pour éviter la sérialisation JSON lente de Pydantic
+        start = time.time()
+        logger.info("[API] Conversion en dict (model_dump)...")
+        response_dict = response.model_dump()
+        logger.info(f"[API] Conversion en dict terminée en {time.time()-start:.3f}s")
+        return response_dict
+    except Exception as e:
+        logger.error(f"[API] Erreur dans _session_to_response: {type(e).__name__}: {e}")
+        logger.error(traceback.format_exc())
+        raise

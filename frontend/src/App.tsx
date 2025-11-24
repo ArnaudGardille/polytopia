@@ -190,6 +190,7 @@ function App() {
       const session = await createPerfectionGame({
         opponents: config.opponents,
         difficulty: config.difficulty,
+        strategy: config.strategy,
       });
       setLiveSession(session);
        persistLastLiveGameId(session.gameId);
@@ -209,8 +210,19 @@ function App() {
   const withLiveRequest = async (request: () => Promise<LiveGameStateResponse>) => {
     if (!liveSession) return;
     setIsLiveBusy(true);
+    console.log('[Frontend] Début de la requête live...');
+    const startTime = Date.now();
+    
     try {
-      const updated = await request();
+      // Ajouter un timeout de 30 secondes pour éviter le freeze éternel
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout : le serveur met trop de temps à répondre (30s)')), 30000);
+      });
+      
+      const updated = await Promise.race([request(), timeoutPromise]);
+      const elapsed = Date.now() - startTime;
+      console.log(`[Frontend] Requête terminée en ${elapsed}ms`);
+      
       setLiveSession(updated);
       setLiveRuntimeError(null);
       // Vérifier que l'unité sélectionnée existe toujours
@@ -223,11 +235,14 @@ function App() {
         }
       }
     } catch (err) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[Frontend] Erreur après ${elapsed}ms:`, err);
       const message =
         err instanceof Error ? err.message : 'Action live impossible.';
       setLiveRuntimeError(message);
     } finally {
       setIsLiveBusy(false);
+      console.log('[Frontend] Fin du traitement de la requête live');
     }
   };
 
@@ -246,7 +261,7 @@ function App() {
     await withLiveRequest(() => getLiveGameState(liveSession.gameId));
   };
 
-  const handleResumeLastGame = async () => {
+  const handleResumeLastGame = useCallback(async () => {
     if (!lastLiveGameId) {
       setResumeError("Aucune partie à reprendre.");
       return;
@@ -270,7 +285,7 @@ function App() {
     } finally {
       setIsResumingLastGame(false);
     }
-  };
+  }, [lastLiveGameId, persistLastLiveGameId, clearLastLiveGameId]);
 
   const handleExitLiveGame = () => {
     setLiveSession(null);
@@ -420,4 +435,3 @@ function App() {
 }
 
 export default App;
-

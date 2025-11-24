@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { LiveGameStateResponse, CityView } from '../types';
 import { TerrainType, UnitType, ResourceType } from '../types';
 import { Board, type MoveTarget } from './Board';
+import { Scoreboard } from './Scoreboard';
 import {
   Direction,
   directionFromDelta,
@@ -10,6 +11,7 @@ import {
   encodeResearchTech,
   encodeTrainUnit,
   encodeHarvestResource,
+  getDirectionDelta,
 } from '../utils/actionEncoder';
 import { TECHNOLOGY_TREE } from '../data/techTree';
 import { getResourceDefinition, HARVEST_ZONE_OFFSETS } from '../data/resources';
@@ -36,27 +38,28 @@ const TRAINABLE_UNITS = [
   },
 ] as const;
 
-type HexDirKey = 'NW' | 'NE' | 'W' | 'E' | 'SW' | 'SE';
+const CITY_LEVEL_POP_THRESHOLDS = [0, 1, 3, 5] as const;
+const CITY_STAR_INCOME_PER_LEVEL = [0, 2, 4, 6] as const;
 
-const HEX_OFFSETS: Record<'even' | 'odd', Record<HexDirKey, [number, number]>> =
-  {
-    even: {
-      NW: [-1, -1],
-      NE: [0, -1],
-      W: [-1, 0],
-      E: [1, 0],
-      SW: [-1, 1],
-      SE: [0, 1],
-    },
-    odd: {
-      NW: [0, -1],
-      NE: [1, -1],
-      W: [-1, 0],
-      E: [1, 0],
-      SW: [0, 1],
-      SE: [1, 1],
-    },
-  };
+type CityPopulationInfo = {
+  value: number;
+  hasData: boolean;
+  next: number;
+  progressPercent: number;
+  isMaxLevel: boolean;
+};
+
+// Système de grille simple : 8 directions avec deltas {-1, 0, 1} en x et y
+const NEIGHBOR_OFFSETS: [number, number][] = [
+  [-1, -1], // UP_LEFT
+  [0, -1],  // UP
+  [1, -1],  // UP_RIGHT
+  [1, 0],   // RIGHT
+  [1, 1],   // DOWN_RIGHT
+  [0, 1],   // DOWN
+  [-1, 1],  // DOWN_LEFT
+  [-1, 0],  // LEFT
+];
 
 export function LiveGameView({
   session,
@@ -111,19 +114,51 @@ export function LiveGameView({
       ) ?? null
     );
   }, [selectedCityPos, state.cities]);
+  const selectedCityPopulation =
+    selectedCity && state.city_population?.[selectedCity.pos[1]]?.[selectedCity.pos[0]];
+  const cityPopulationInfo = useMemo<CityPopulationInfo | null>(() => {
+    if (!selectedCity) return null;
+    const maxLevelIndex = CITY_LEVEL_POP_THRESHOLDS.length - 1;
+    const levelIndex = Math.min(
+      Math.max(selectedCity.level, 0),
+      maxLevelIndex
+    );
+    const nextLevelIndex = Math.min(levelIndex + 1, maxLevelIndex);
+    const minThreshold = CITY_LEVEL_POP_THRESHOLDS[levelIndex];
+    const nextThreshold = CITY_LEVEL_POP_THRESHOLDS[nextLevelIndex];
+    const isMaxLevel = levelIndex >= maxLevelIndex;
+    const baseValue =
+      typeof selectedCityPopulation === 'number'
+        ? selectedCityPopulation
+        : minThreshold;
+    const clampedValue = Math.max(
+      minThreshold,
+      Math.min(baseValue, nextThreshold)
+    );
+    const range = isMaxLevel ? 1 : Math.max(nextThreshold - minThreshold, 1);
+    const filled = clampedValue - minThreshold;
+    const progressPercent = isMaxLevel
+      ? 100
+      : Math.round((filled / range) * 100);
+    return {
+      value: baseValue,
+      hasData: typeof selectedCityPopulation === 'number',
+      next: nextThreshold,
+      progressPercent,
+      isMaxLevel,
+    };
+  }, [selectedCity, selectedCityPopulation]);
+  const cityIncome = selectedCity
+    ? CITY_STAR_INCOME_PER_LEVEL[
+        Math.min(selectedCity.level, CITY_STAR_INCOME_PER_LEVEL.length - 1)
+      ]
+    : 0;
   const cityOccupied = selectedCity ? isCityOccupied(selectedCity) : false;
   const selectedUnit = useMemo(() => {
     if (selectedUnitId === null) return null;
     return state.units.find((unit) => (unit.id ?? -1) === selectedUnitId) || null;
   }, [selectedUnitId, state.units]);
 
-  const getNeighborOffset = (
-    dir: HexDirKey,
-    row: number
-  ): [number, number] | null => {
-    const parity = row % 2 === 0 ? 'even' : 'odd';
-    return HEX_OFFSETS[parity][dir] ?? null;
-  };
 
   const handleSelectCity = (city: CityView) => {
     const nextPos: [number, number] = [city.pos[0], city.pos[1]];
@@ -189,73 +224,26 @@ export function LiveGameView({
     );
   };
 
-  const getTargetForDir = (dir: HexDirKey): [number, number] | null => {
-    if (!selectedUnit) return null;
-    const offset = getNeighborOffset(dir, selectedUnit.pos[1]);
-    if (!offset) return null;
-    const target: [number, number] = [
-      selectedUnit.pos[0] + offset[0],
-      selectedUnit.pos[1] + offset[1],
-    ];
-    if (
-      target[0] < 0 ||
-      target[0] >= boardWidth ||
-      target[1] < 0 ||
-      target[1] >= boardHeight
-    ) {
-      return null;
-    }
-    return target;
-  };
-
-  const getVerticalTarget = (
-    direction: 'UP' | 'DOWN'
-  ): [number, number] | null => {
-    if (!selectedUnit) return null;
-    const deltaY = direction === 'UP' ? -2 : 2;
-    const target: [number, number] = [
-      selectedUnit.pos[0],
-      selectedUnit.pos[1] + deltaY,
-    ];
-    if (
-      target[0] < 0 ||
-      target[0] >= boardWidth ||
-      target[1] < 0 ||
-      target[1] >= boardHeight
-    ) {
-      return null;
-    }
-    return target;
-  };
-
   const getDirectionFromOffset = (
     dx: number,
-    dy: number,
-    fromY: number
+    dy: number
   ): Direction | null => {
-    if (dx === 0 && dy === -2) return Direction.UP;
-    if (dx === 0 && dy === 2) return Direction.DOWN;
-    if (dx === 0 && dy === -1) {
-      return fromY % 2 === 0 ? Direction.UP_RIGHT : Direction.UP_LEFT;
-    }
-    if (dx === 0 && dy === 1) {
-      return fromY % 2 === 0 ? Direction.DOWN_RIGHT : Direction.DOWN_LEFT;
-    }
-    const parity = fromY % 2 === 0 ? 'even' : 'odd';
-    const hexOffsets = HEX_OFFSETS[parity];
-    for (const dir of Object.keys(hexOffsets) as HexDirKey[]) {
-      const [offsetX, offsetY] = hexOffsets[dir];
-      if (offsetX === dx && offsetY === dy) {
-        return directionFromDelta([offsetX, offsetY]);
-      }
-    }
-    return null;
+    // Utiliser directement directionFromDelta pour convertir le delta en direction
+    // Système simple : {-1, 0, 1} en x et {-1, 0, 1} en y
+    return directionFromDelta([dx, dy]);
   };
 
-  const executeActionAtTarget = (target: [number, number]) => {
+  const executeActionAtTarget = (target: [number, number], validTargets?: MoveTarget[]) => {
     if (!selectedUnit || selectedUnitId === null) return;
     const [targetX, targetY] = target;
     if (!isWithinBounds(targetX, targetY)) return;
+    
+    // Vérifier que la case cible est dans la liste des cibles valides si fournie
+    if (validTargets && !validTargets.some(t => t.x === targetX && t.y === targetY)) {
+      console.warn(`Déplacement invalide : la case [${targetX}, ${targetY}] n'est pas dans la liste des cibles valides`);
+      return;
+    }
+    
     const occupant = getUnitAt(targetX, targetY);
     const unitId = selectedUnit.id ?? selectedUnitId ?? 0;
     if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
@@ -272,15 +260,19 @@ export function LiveGameView({
     }
     const dx = targetX - selectedUnit.pos[0];
     const dy = targetY - selectedUnit.pos[1];
-    const direction = getDirectionFromOffset(dx, dy, selectedUnit.pos[1]);
-    if (direction === null) return;
+    const direction = getDirectionFromOffset(dx, dy);
+    if (direction === null) {
+      // Déplacement invalide : la case n'est pas adjacente ou la direction n'est pas reconnue
+      console.warn(`Déplacement invalide depuis [${selectedUnit.pos[0]}, ${selectedUnit.pos[1]}] vers [${targetX}, ${targetY}] (dx=${dx}, dy=${dy})`);
+      return;
+    }
     const actionId = encodeMove(unitId, direction);
     onSendAction(actionId);
     onSelectUnit(null);
   };
 
   const handleMoveToCell = (target: MoveTarget) => {
-    executeActionAtTarget([target.x, target.y]);
+    executeActionAtTarget([target.x, target.y], moveTargets);
   };
 
   const moveTargets = useMemo<MoveTarget[]>(() => {
@@ -305,18 +297,18 @@ export function LiveGameView({
       }
       const dx = targetX - selectedUnit.pos[0];
       const dy = targetY - selectedUnit.pos[1];
-      const direction = getDirectionFromOffset(dx, dy, selectedUnit.pos[1]);
+      const direction = getDirectionFromOffset(dx, dy);
       if (direction !== null) {
         targets.push({ x: targetX, y: targetY, type: 'move' });
       }
     };
 
-    (['NW', 'NE', 'W', 'E', 'SW', 'SE'] as HexDirKey[]).forEach((dir) =>
-      collectTarget(getTargetForDir(dir))
-    );
-    (['UP', 'DOWN'] as const).forEach((direction) =>
-      collectTarget(getVerticalTarget(direction))
-    );
+    // Générer les 8 voisins avec les deltas {-1, 0, 1}
+    NEIGHBOR_OFFSETS.forEach(([dx, dy]) => {
+      const targetX = selectedUnit.pos[0] + dx;
+      const targetY = selectedUnit.pos[1] + dy;
+      collectTarget([targetX, targetY]);
+    });
     return targets;
   }, [
     selectedUnit,
@@ -471,6 +463,15 @@ export function LiveGameView({
             </div>
           </section>
 
+          <section className="mt-4">
+            <Scoreboard
+              state={state}
+              highlightPlayer={HUMAN_PLAYER_ID}
+              title="Classement général"
+              className="w-full"
+            />
+          </section>
+
           <section>
             <h2 className="text-lg font-semibold mb-2">Progression</h2>
             <div className="text-sm text-gray-400 mb-1">
@@ -607,6 +608,43 @@ export function LiveGameView({
                     La case est occupée, libérez-la avant de recruter.
                   </p>
                 )}
+                <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-200">
+                      Niveau {selectedCity.level}
+                    </p>
+                    <p className="text-sm font-semibold text-amber-300">
+                      {cityIncome}★/tour
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Les villes ne stockent pas d'étoiles : elles alimentent ton revenu
+                    de fin de tour via leur niveau et leur évolution.
+                  </p>
+                  {cityPopulationInfo && (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Population</span>
+                        <span>
+                          {cityPopulationInfo.hasData
+                            ? `${cityPopulationInfo.value}/${cityPopulationInfo.next}`
+                            : `— / ${cityPopulationInfo.next}`}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div
+                          className="h-2 rounded-full bg-emerald-400 transition-all"
+                          style={{ width: `${cityPopulationInfo.progressPercent}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        {cityPopulationInfo.isMaxLevel
+                          ? 'Niveau max atteint'
+                          : `Prochain niveau à ${cityPopulationInfo.next} pop`}
+                      </p>
+                    </>
+                  )}
+                </div>
                 <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold">

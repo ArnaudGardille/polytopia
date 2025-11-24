@@ -108,6 +108,7 @@ export interface GameConfig {
   mode: GameMode;
   opponents: number; // 3-9
   difficulty: Difficulty;
+  strategy?: string;
 }
 
 // Types pour le mode live Perfection
@@ -116,6 +117,7 @@ export interface LiveGameHandle {
   maxTurns: number;
   opponents: number;
   difficulty: Difficulty | string;
+  strategy: string;
 }
 
 export interface LiveGameStateResponse extends LiveGameHandle {

@@ -33,12 +33,13 @@ class Direction(IntEnum):
 
 
 # Mapping direction -> (dx, dy)
+# Système de grille simple avec 8 directions : {-1, 0, 1} en x et {-1, 0, 1} en y
 DIRECTION_DELTA = jnp.array([
-    [0, -2],   # UP (vertical sur deux rangées pour suivre l'axe isométrique)
+    [0, -1],   # UP
     [1, -1],   # UP_RIGHT
     [1, 0],    # RIGHT
     [1, 1],    # DOWN_RIGHT
-    [0, 2],    # DOWN (vertical sur deux rangées pour suivre l'axe isométrique)
+    [0, 1],    # DOWN
     [-1, 1],   # DOWN_LEFT
     [-1, 0],   # LEFT
     [-1, -1],  # UP_LEFT

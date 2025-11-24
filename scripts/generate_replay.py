@@ -15,7 +15,7 @@ from polytopia_jax.core.init import init_random, GameConfig
 from polytopia_jax.core.rules import step
 from polytopia_jax.core.state import GameState
 
-from scripts.serialize import state_to_dict
+from polytopia_jax.web.serialize import state_to_dict
 from scripts.simple_bot import SimpleBot
 
 

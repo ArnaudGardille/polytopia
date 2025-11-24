@@ -1,15 +1,21 @@
 """Agents et helpers IA pour Polytopia."""
 
-from .heuristic import (
+from .strategies import (
+    StrategyAI,
+    STRATEGY_CLASSES,
+    AVAILABLE_STRATEGIES,
+    resolve_strategy_name,
     DifficultyPreset,
     DIFFICULTY_PRESETS,
     resolve_difficulty,
-    HeuristicAI,
 )
 
 __all__ = [
+    "StrategyAI",
+    "STRATEGY_CLASSES",
+    "AVAILABLE_STRATEGIES",
+    "resolve_strategy_name",
     "DifficultyPreset",
     "DIFFICULTY_PRESETS",
     "resolve_difficulty",
-    "HeuristicAI",
 ]

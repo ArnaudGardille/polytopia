@@ -12,9 +12,14 @@ import numpy as np
 
 from polytopia_jax.core.init import GameConfig, init_random
 from polytopia_jax.core.rules import step, legal_actions_mask
-from polytopia_jax.core.actions import END_TURN_ACTION
+from polytopia_jax.core.actions import END_TURN_ACTION, decode_action, ActionType
 from polytopia_jax.core.state import GameMode, GameState
-from polytopia_jax.ai import HeuristicAI, DifficultyPreset, resolve_difficulty
+from polytopia_jax.ai import (
+    StrategyAI,
+    DifficultyPreset,
+    resolve_difficulty,
+    resolve_strategy_name,
+)
 
 
 @dataclass
@@ -27,6 +32,7 @@ class SimulationConfig:
     max_units: int = 64
     max_turns: int = 30
     difficulty: str = "normal"
+    ai_strategy: str = "rush"
     game_mode: GameMode = GameMode.DOMINATION
 
 
@@ -36,8 +42,9 @@ class SimulationSession:
     def __init__(self, config: SimulationConfig):
         self.config = config
         self.state: Optional[GameState] = None
-        self.ai_agents: Dict[int, HeuristicAI] = {}
+        self.ai_agents: Dict[int, StrategyAI] = {}
         self.difficulty: DifficultyPreset = resolve_difficulty(config.difficulty)
+        self.strategy_name = resolve_strategy_name(config.ai_strategy)
         self.seed: Optional[int] = None
         self.reset()
 
@@ -65,7 +72,11 @@ class SimulationSession:
         state = init_random(key, engine_config)
         state = self._apply_difficulty_bonuses(state)
         self.ai_agents = {
-            player_id: HeuristicAI(player_id, seed=seed + player_id)
+            player_id: StrategyAI(
+                player_id,
+                strategy_name=self.strategy_name,
+                seed=seed + player_id,
+            )
             for player_id in range(1, num_players)
         }
         state = self._advance_ai_turns(state)
@@ -131,12 +142,24 @@ class SimulationSession:
                 break
         return state
 
-    def _play_ai_turn(self, state: GameState, agent: HeuristicAI) -> GameState:
+    def _play_ai_turn(self, state: GameState, agent: StrategyAI) -> GameState:
         """Laisse l'agent heuristique jouer son tour complet."""
+        from polytopia_jax.ai.strategies import _build_context
+        
         local_guard = 0
+        # Construire le contexte une seule fois au début du tour pour optimiser les performances
+        context = _build_context(state, agent.player_id)
+        
         while not self._is_done_state(state) and self._current_player(state) == agent.player_id:
-            action = agent.choose_action(state)
+            action = agent.choose_action(state, context)
             state = step(state, action)
+            
+            # Reconstruire le contexte après les actions qui modifient les positions
+            decoded = decode_action(action)
+            action_type = decoded.get("action_type")
+            if action_type in (ActionType.MOVE.value, ActionType.ATTACK.value):
+                context = _build_context(state, agent.player_id)
+            
             local_guard += 1
             if local_guard > state.max_units * 2:
                 state = step(state, END_TURN_ACTION)

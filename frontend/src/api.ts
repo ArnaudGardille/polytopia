@@ -11,11 +11,27 @@ import type {
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+    if (!response.ok) {
+      let errorDetail = `${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorDetail = errorData.detail;
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+      throw new Error(`API Error: ${errorDetail}`);
+    }
+    return response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      throw new Error('Impossible de contacter le serveur. Vérifiez que le backend est lancé.');
+    }
+    throw error;
   }
-  return response.json();
 }
 
 /**
@@ -60,6 +76,7 @@ interface LiveGameApiResponse {
   max_turns: number;
   opponents: number;
   difficulty: string;
+  strategy: string;
   state: GameStateView;
 }
 
@@ -69,6 +86,7 @@ function mapLiveResponse(data: LiveGameApiResponse): LiveGameStateResponse {
     maxTurns: data.max_turns,
     opponents: data.opponents,
     difficulty: data.difficulty,
+    strategy: data.strategy,
     state: data.state,
   };
 }
@@ -76,6 +94,7 @@ function mapLiveResponse(data: LiveGameApiResponse): LiveGameStateResponse {
 interface CreatePerfectionPayload {
   opponents: number;
   difficulty: Difficulty;
+  strategy?: string;
   seed?: number;
 }
 
@@ -88,6 +107,9 @@ export async function createPerfectionGame(
   };
   if (payload.seed !== undefined) {
     body.seed = payload.seed;
+  }
+  if (payload.strategy) {
+    body.strategy = payload.strategy;
   }
 
   const data = await fetchAPI<LiveGameApiResponse>('/live/perfection', {
@@ -109,6 +131,7 @@ export async function sendLiveAction(
   gameId: string,
   actionId: number
 ): Promise<LiveGameStateResponse> {
+  console.log(`[API] Envoi action ${actionId} vers /live/${gameId}/action`);
   const data = await fetchAPI<LiveGameApiResponse>(`/live/${gameId}/action`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -125,4 +148,3 @@ export async function endLiveTurn(
   });
   return mapLiveResponse(data);
 }
-

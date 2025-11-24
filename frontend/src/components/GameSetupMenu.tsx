@@ -18,6 +18,7 @@ export function GameSetupMenu({
 }: GameSetupMenuProps) {
   const [opponents, setOpponents] = useState(9);
   const [difficulty, setDifficulty] = useState<Difficulty>('crazy');
+  const [strategy, setStrategy] = useState<string>('rush');
 
   // Calculer les paramètres de la carte basés sur le nombre d'opposants
   const calculateMapSize = (numOpponents: number): number => {
@@ -35,6 +36,7 @@ export function GameSetupMenu({
       mode,
       opponents,
       difficulty,
+      strategy,
     };
     if (onStartGame) {
       onStartGame(config);
@@ -137,6 +139,33 @@ export function GameSetupMenu({
               </div>
             </div>
 
+            {/* Sélection de stratégie IA */}
+            <div className="mb-8">
+              <label className="block text-white text-xl font-semibold mb-4">
+                AI Strategy
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { id: 'rush', label: 'Rush' },
+                  { id: 'economy', label: 'Economy' },
+                  { id: 'random', label: 'Random' },
+                  { id: 'idle', label: 'Do Nothing' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setStrategy(item.id)}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                      strategy === item.id
+                        ? 'bg-white text-pink-600 shadow-lg scale-105'
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Affichage des paramètres */}
             <div className="mb-8 p-4 bg-white/10 rounded-lg">
               <p className="text-white text-sm">
@@ -168,5 +197,3 @@ export function GameSetupMenu({
     </div>
   );
 }
-
-

@@ -2,10 +2,11 @@
 name = "polytopia-jax"
 version = "0.1.0"
 description = "Environnement de simulation Polytopia en JAX pour l'apprentissage par renforcement"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "jax>=0.4.0",
     "jaxlib>=0.4.0",
+    "flax>=0.7.0",
     "numpy>=1.24.0",
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

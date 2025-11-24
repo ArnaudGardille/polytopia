@@ -34,13 +34,15 @@ C'est ce chevauchement qui donne l'herbe uniforme.
 
 3. Placement sur la grille
 
-Pour une grille indexée (i, j) :
+Pour une grille indexée (i, j) avec coordonnées alignées :
 
-x = √3 · a · (i + 0.5 · (j mod 2))
+x = √3 · a · i
 
 y = (3/2) · a · j
 
-	•	Chaque ligne est décalée d'un demi-hexagone à droite.
+	•	Les coordonnées (i, j) sont alignées : pas de décalage selon la parité de la ligne.
+
+	•	Le rendu visuel reste hexagonal mais les coordonnées logiques sont alignées.
 
 	•	L'ordre d'affichage doit aller du haut vers le bas pour gérer les recouvrements.
 
@@ -55,6 +57,7 @@ En appliquant strictement ces proportions :
 	•	Le sommet en losange de chaque hexagone recouvre exactement le bas du suivant.
 
 	•	L'herbe apparaît d'un seul tenant, comme dans Polytopia.
+
 
 
 

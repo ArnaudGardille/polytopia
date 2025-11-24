@@ -75,10 +75,10 @@ def test_directions():
         assert delta.shape == (2,)
         assert delta.dtype == jnp.int32
     
-    # Vérifier les valeurs spécifiques
+    # Vérifier les valeurs spécifiques (système simple : {-1, 0, 1} en x et y)
     assert jnp.array_equal(
         get_action_direction_delta(Direction.UP),
-        jnp.array([0, -2])
+        jnp.array([0, -1])
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.UP_RIGHT),
@@ -94,7 +94,7 @@ def test_directions():
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.DOWN),
-        jnp.array([0, 2])
+        jnp.array([0, 1])
     )
     assert jnp.array_equal(
         get_action_direction_delta(Direction.DOWN_LEFT),
@@ -148,13 +148,13 @@ def test_direction_delta_array():
     assert DIRECTION_DELTA.shape == (8, 2)
     assert DIRECTION_DELTA.dtype == jnp.int32
     
-    # Vérifier chaque direction
+    # Vérifier chaque direction (système simple : {-1, 0, 1} en x et y)
     expected = jnp.array([
-        [0, -2],   # UP
+        [0, -1],   # UP
         [1, -1],   # UP_RIGHT
         [1, 0],    # RIGHT
         [1, 1],    # DOWN_RIGHT
-        [0, 2],    # DOWN
+        [0, 1],    # DOWN
         [-1, 1],   # DOWN_LEFT
         [-1, 0],   # LEFT
         [-1, -1],  # UP_LEFT

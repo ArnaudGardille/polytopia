@@ -20,12 +20,13 @@ export enum Direction {
   UP_LEFT = 7,
 }
 
+// Système de grille simple : 8 directions avec deltas {-1, 0, 1} en x et y
 const DIRECTION_DELTA: Record<Direction, [number, number]> = {
-  [Direction.UP]: [0, -2],
+  [Direction.UP]: [0, -1],
   [Direction.UP_RIGHT]: [1, -1],
   [Direction.RIGHT]: [1, 0],
   [Direction.DOWN_RIGHT]: [1, 1],
-  [Direction.DOWN]: [0, 2],
+  [Direction.DOWN]: [0, 1],
   [Direction.DOWN_LEFT]: [-1, 1],
   [Direction.LEFT]: [-1, 0],
   [Direction.UP_LEFT]: [-1, -1],

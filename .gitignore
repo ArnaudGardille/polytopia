@@ -50,3 +50,5 @@ htmlcov/
 replays/*.json
 !replays/test_game.json
 !replays/.gitkeep
+live_games/*.json
+!live_games/.gitkeep

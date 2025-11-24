@@ -69,9 +69,12 @@ class GameStateView(BaseModel):
     @classmethod
     def from_raw_state(cls, state: dict) -> "GameStateView":
         """Crée un GameStateView depuis un état brut sérialisé."""
+        import time
+        start = time.time()
+        
         terrain = state["terrain"]
         
-        # Extraire les villes depuis city_owner et city_level
+        # Extraire les villes depuis city_owner et city_level (optimisé)
         cities = []
         city_owner = state.get("city_owner", [])
         city_level = state.get("city_level", [])
@@ -82,29 +85,27 @@ class GameStateView(BaseModel):
             height = len(city_owner)
             width = len(city_owner[0]) if height > 0 else 0
             
-            for y in range(height):
-                for x in range(width):
-                    owner = city_owner[y][x]
-                    level = city_level[y][x]
-                    if owner != -1 and level > 0:  # -1 signifie pas de ville
-                        cities.append(CityView(
-                            owner=owner,
-                            level=level,
-                            pos=[x, y]
-                        ))
+            # Utiliser une liste en compréhension pour être plus rapide
+            cities = [
+                CityView(owner=city_owner[y][x], level=city_level[y][x], pos=[x, y])
+                for y in range(height)
+                for x in range(width)
+                if city_owner[y][x] != -1 and city_level[y][x] > 0
+            ]
         
-        # Extraire les unités
-        units = []
+        # Extraire les unités (optimisé avec liste en compréhension)
         raw_units = state.get("units", [])
-        for idx, unit in enumerate(raw_units):
-            units.append(UnitView(
+        units = [
+            UnitView(
                 id=unit.get("id", idx),
                 type=unit["type"],
                 pos=unit["pos"],
                 hp=unit["hp"],
                 owner=unit["owner"],
                 has_acted=unit.get("has_acted", False),
-            ))
+            )
+            for idx, unit in enumerate(raw_units)
+        ]
         
         player_stars = state.get("player_stars", [])
         player_income = state.get("player_income", [])
@@ -115,24 +116,27 @@ class GameStateView(BaseModel):
         resource_available = state.get("resource_available", [])
         visibility_mask = state.get("visibility_mask")
         
-        return cls(
-            terrain=terrain,
-            cities=cities,
-            units=units,
-            city_population=city_population,
-            city_ports=city_ports,
-            resource_type=resource_type,
-            resource_available=resource_available,
-            player_stars=player_stars,
-            player_income=player_income,
-            player_score=player_score,
-            score_breakdown=score_breakdown,
-            player_techs=player_techs,
-            visibility_mask=visibility_mask,
-            current_player=state.get("current_player", 0),
-            turn=state.get("turn", 0),
-            done=state.get("done", False)
-        )
+        # Utiliser model_validate pour éviter la validation supplémentaire
+        result = cls.model_validate({
+            "terrain": terrain,
+            "cities": cities,
+            "units": units,
+            "city_population": city_population,
+            "city_ports": city_ports,
+            "resource_type": resource_type,
+            "resource_available": resource_available,
+            "player_stars": player_stars,
+            "player_income": player_income,
+            "player_score": player_score,
+            "score_breakdown": score_breakdown,
+            "player_techs": player_techs,
+            "visibility_mask": visibility_mask,
+            "current_player": state.get("current_player", 0),
+            "turn": state.get("turn", 0),
+            "done": state.get("done", False)
+        })
+        
+        return result
     
     class Config:
         json_schema_extra = {
@@ -276,6 +280,10 @@ class LiveGameConfig(BaseModel):
 
     opponents: int = Field(3, ge=1, le=9, description="Nombre d'adversaires IA")
     difficulty: str = Field("crazy", description="Difficulté (impact les bonus d'étoiles des IA)")
+    strategy: Optional[str] = Field(
+        None,
+        description="Stratégie IA (idle, random, rush, economy)",
+    )
     seed: Optional[int] = Field(None, description="Seed optionnelle pour reproductibilité")
     reveal_map: Optional[bool] = Field(
         None,
@@ -300,4 +308,5 @@ class LiveGameResponse(BaseModel):
     max_turns: int = Field(..., description="Limite de tours pour le mode")
     opponents: int = Field(..., description="Nombre d'adversaires IA")
     difficulty: str = Field(..., description="Difficulté choisie")
+    strategy: str = Field(..., description="Stratégie IA utilisée par défaut")
     state: GameStateView = Field(..., description="État courant de la partie")

@@ -31,12 +31,14 @@ interface BoardProps {
   onSelectMoveTarget?: (target: MoveTarget) => void;
 }
 
-// Fonction pour calculer la position d'un hexagone en grille hexagonale (pointy-top)
+// Fonction pour calculer la position isométrique d'une case
+// Transformation isométrique simple : les diagonales visuelles correspondent aux diagonales logiques
 function hexToPixel(x: number, y: number, tileWidth: number): [number, number] {
   const tileHeight = tileWidth * TILE_HEIGHT_OVER_WIDTH;
-  const verticalPitch = tileHeight * (1 - TOP_OVERLAP_RATIO);
-  const pixelX = tileWidth * (x + 0.5 * (y % 2));
-  const pixelY = tileHeight / 2 + y * verticalPitch;
+  // Transformation isométrique : rotation de 45° avec compression verticale
+  // Les diagonales visuelles correspondent aux diagonales logiques
+  const pixelX = (x - y) * tileWidth / 2;
+  const pixelY = (x + y) * tileHeight / 4; // Distance verticale divisée par 2
   return [pixelX, pixelY];
 }
 
@@ -59,15 +61,17 @@ export function Board({
   const width = terrain[0]?.length || 0;
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
 
-  // Calculer la taille de cellule responsive (largeur d'un hexagone)
+  // Calculer la taille de cellule responsive pour rendu isométrique
   const hexSize = useMemo(() => {
     if (propCellSize) return propCellSize;
     const maxWidth = Math.min(containerSize.width - 40, 1600);
     const maxHeight = containerSize.height - 40;
     const tileHeightUnit = TILE_HEIGHT_OVER_WIDTH;
-    const verticalPitchUnit = tileHeightUnit * (1 - TOP_OVERLAP_RATIO);
-    const widthDenominator = width > 0 ? width + 0.5 : 1;
-    const heightDenominator = height > 0 ? tileHeightUnit + (height - 1) * verticalPitchUnit : tileHeightUnit;
+    // Pour un rendu isométrique, la largeur totale dépend de (width + height) / 2
+    // et la hauteur totale dépend de (width + height) / 2 aussi
+    const diagonalSize = Math.max(width, height);
+    const widthDenominator = diagonalSize > 0 ? diagonalSize : 1;
+    const heightDenominator = diagonalSize > 0 ? diagonalSize * tileHeightUnit : tileHeightUnit;
     const cellSizeByWidth = maxWidth / widthDenominator;
     const cellSizeByHeight = maxHeight / heightDenominator;
     return Math.min(cellSizeByWidth, cellSizeByHeight, 160);
@@ -75,8 +79,8 @@ export function Board({
 
   const tileWidth = hexSize;
   const tileHeight = tileWidth * TILE_HEIGHT_OVER_WIDTH;
-  const verticalPitch = tileHeight * (1 - TOP_OVERLAP_RATIO);
-  const spriteCenterCorrectionY = verticalPitch / 2;
+  // Pas de correction nécessaire pour rendu isométrique pur
+  const spriteCenterCorrectionY = 0;
 
   // Mettre à jour la taille du conteneur
   useEffect(() => {
@@ -95,18 +99,23 @@ export function Board({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
-  // Calculer les dimensions du viewBox pour la grille hexagonale (pointy-top)
+  // Calculer les dimensions du viewBox pour rendu isométrique
   const viewBox = useMemo(() => {
     const paddingX = tileWidth * 0.05;
     const paddingY = tileHeight * 0.05;
-    const boardWidth = width > 0 ? width * tileWidth + tileWidth / 2 : tileWidth;
-    const boardHeight = height > 0 ? tileHeight + (height - 1) * verticalPitch : tileHeight;
-    const minX = -tileWidth / 2 - paddingX;
-    const minY = -paddingY;
+    // Pour un rendu isométrique, les dimensions dépendent de la transformation (x-y) et (x+y)
+    // Largeur max : de (0, height-1) à (width-1, 0) = (width-1) - (height-1) en x transformé
+    // Hauteur max : de (0, 0) à (width-1, height-1) = (width-1) + (height-1) en y transformé (divisé par 4)
+    const maxX = width > 0 ? (width - 1) * tileWidth / 2 : 0;
+    const minX = height > 0 ? -(height - 1) * tileWidth / 2 : 0;
+    const boardWidth = maxX - minX + tileWidth;
+    const boardHeight = height > 0 && width > 0 ? ((width - 1) + (height - 1)) * tileHeight / 4 + tileHeight : tileHeight;
+    const viewMinX = minX - paddingX;
+    const viewMinY = -paddingY;
     const viewWidth = boardWidth + paddingX * 2;
     const viewHeight = boardHeight + paddingY * 2;
-    return `${minX} ${minY} ${viewWidth} ${viewHeight}`;
-  }, [width, height, tileWidth, tileHeight, verticalPitch]);
+    return `${viewMinX} ${viewMinY} ${viewWidth} ${viewHeight}`;
+  }, [width, height, tileWidth, tileHeight]);
 
   const moveTargetsMap = useMemo(() => {
     if (!moveTargets || moveTargets.length === 0) return null;
@@ -182,6 +191,22 @@ export function Board({
                     pointerEvents="none"
                   />
                 )}
+                <text
+                  x={centerX}
+                  y={centerY - tileHeight * 0.35}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="white"
+                  fontSize={Math.max(4, Math.min(tileWidth, tileHeight) * 0.04)}
+                  fontWeight="bold"
+                  stroke="black"
+                  strokeWidth={Math.max(0.15, Math.min(tileWidth, tileHeight) * 0.008)}
+                  paintOrder="stroke"
+                  pointerEvents="none"
+                  style={{ userSelect: 'none' }}
+                >
+                  {`${x},${y}`}
+                </text>
               </g>
             );
           })
