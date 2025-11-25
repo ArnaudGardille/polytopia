@@ -508,7 +508,7 @@ CITY_CAPTURE_POPULATION = 1
 - Capture termine le tour de l'unité
 
 **Siège :**
-- Villes assiégées (unité ennemie adjacente) ne produisent **aucun revenu**
+- Villes assiégées (unité ennemie dessus) ne produisent **aucun revenu**
 
 **Revenus capitales :**
 - Humain/Normal bot : 2★/tour (base)

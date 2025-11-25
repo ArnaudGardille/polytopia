@@ -325,6 +325,17 @@ class LiveGameConfig(BaseModel):
         None,
         description="Débloquer automatiquement toutes les technologies",
     )
+    board_size: Optional[int] = Field(
+        None,
+        ge=8,
+        le=30,
+        description="Taille de la carte (mode Creative uniquement, 8-30)",
+    )
+    max_turns: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Limite de tours (mode Creative uniquement, None = pas de limite)",
+    )
 
 
 class LiveActionPayload(BaseModel):

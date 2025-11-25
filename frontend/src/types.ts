@@ -126,7 +126,7 @@ export const TechType = {
 // Types pour la navigation et la configuration de jeu
 export type Screen = 'mainMenu' | 'modeSelection' | 'gameSetup' | 'game' | 'liveGame';
 
-export type GameMode = 'perfection' | 'domination' | 'creative';
+export type GameMode = 'perfection' | 'domination' | 'creative' | 'glory' | 'might';
 
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'crazy';
 
@@ -135,6 +135,8 @@ export interface GameConfig {
   opponents: number; // 3-9
   difficulty: Difficulty;
   strategy?: string;
+  boardSize?: number; // Pour mode Creative uniquement
+  maxTurns?: number; // Pour mode Creative uniquement
 }
 
 // Types pour le mode live Perfection

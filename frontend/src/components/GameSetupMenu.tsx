@@ -19,17 +19,18 @@ export function GameSetupMenu({
   const [opponents, setOpponents] = useState(9);
   const [difficulty, setDifficulty] = useState<Difficulty>('crazy');
   const [strategy, setStrategy] = useState<string>('rush');
+  const [boardSize, setBoardSize] = useState<number>(15);
+  const [maxTurns, setMaxTurns] = useState<number | undefined>(undefined);
 
   // Calculer les paramètres de la carte basés sur le nombre d'opposants
   const calculateMapSize = (numOpponents: number): number => {
     // Formule approximative : plus d'opposants = plus grande carte
-    const baseSize = 128;
-    const sizePerOpponent = 16;
-    return baseSize + numOpponents * sizePerOpponent;
+    const baseSize = 10;
+    return baseSize + Math.min(5, numOpponents);
   };
 
   const mapSize = calculateMapSize(opponents);
-  const turnsLimit = mode === 'perfection' ? 30 : null;
+  const turnsLimit = mode === 'perfection' ? 30 : maxTurns;
 
   const handleStartGame = () => {
     const config: GameConfig = {
@@ -37,6 +38,10 @@ export function GameSetupMenu({
       opponents,
       difficulty,
       strategy,
+      ...(mode === 'creative' && {
+        boardSize,
+        maxTurns: maxTurns || undefined,
+      }),
     };
     if (onStartGame) {
       onStartGame(config);
@@ -166,11 +171,46 @@ export function GameSetupMenu({
               </div>
             </div>
 
+            {/* Paramètres spécifiques au mode Creative */}
+            {mode === 'creative' && (
+              <>
+                <div className="mb-8">
+                  <label className="block text-white text-xl font-semibold mb-4">
+                    Board Size
+                  </label>
+                  <input
+                    type="range"
+                    min="8"
+                    max="30"
+                    value={boardSize}
+                    onChange={(e) => setBoardSize(parseInt(e.target.value))}
+                    className="w-full"
+                  />
+                  <p className="text-white text-sm mt-2">{boardSize}x{boardSize}</p>
+                </div>
+
+                <div className="mb-8">
+                  <label className="block text-white text-xl font-semibold mb-4">
+                    Max Turns (optional)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxTurns || ''}
+                    onChange={(e) => setMaxTurns(e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="No limit"
+                    className="w-full px-4 py-2 rounded-lg bg-white/20 text-white placeholder-white/50"
+                  />
+                </div>
+              </>
+            )}
+
             {/* Affichage des paramètres */}
             <div className="mb-8 p-4 bg-white/10 rounded-lg">
               <p className="text-white text-sm">
-                {opponents} opponents, {mapSize} tiles map
+                {opponents} opponents, {mode === 'creative' ? `${boardSize}x${boardSize}` : `${mapSize}x${mapSize}`} map
                 {turnsLimit && `, ${turnsLimit} turns limit`}
+                {mode === 'creative' && !maxTurns && ', no turn limit'}
               </p>
             </div>
           </div>

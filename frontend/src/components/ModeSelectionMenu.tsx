@@ -97,6 +97,48 @@ export function ModeSelectionMenu({ onNavigate }: ModeSelectionMenuProps) {
                 Play until there is only one tribe left, with no time limit.
               </p>
             </button>
+
+            {/* GLORY */}
+            <button
+              onClick={() => handleModeSelect('glory')}
+              className="bg-blue-400 hover:bg-blue-500 rounded-2xl p-8 text-white transition-all transform hover:scale-105 shadow-xl flex flex-col items-center"
+            >
+              {/* Icône étoile */}
+              <div className="mb-4">
+                <svg
+                  className="w-16 h-16 text-yellow-300"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-bold mb-4">GLORY</h2>
+              <p className="text-center text-sm opacity-90">
+                First player to reach 10,000 points wins.
+              </p>
+            </button>
+
+            {/* MIGHT */}
+            <button
+              onClick={() => handleModeSelect('might')}
+              className="bg-blue-400 hover:bg-blue-500 rounded-2xl p-8 text-white transition-all transform hover:scale-105 shadow-xl flex flex-col items-center"
+            >
+              {/* Icône épée */}
+              <div className="mb-4">
+                <svg
+                  className="w-16 h-16 text-gray-200"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M6.92 5.51L3.71 2.29 2.29 3.71l3.21 3.21c-1.1.9-1.8 2.2-1.8 3.68 0 2.49 2.01 4.5 4.5 4.5.48 0 .94-.08 1.38-.21l3.21 3.21 1.42-1.42-3.21-3.21c.13-.44.21-.9.21-1.38 0-1.48-.7-2.78-1.8-3.68zm8.58 8.58l-1.42 1.42 3.21 3.21c1.1-.9 1.8-2.2 1.8-3.68 0-2.49-2.01-4.5-4.5-4.5-.48 0-.94.08-1.38.21l-3.21-3.21-1.42 1.42 3.21 3.21c-.13.44-.21.9-.21 1.38 0 1.48.7 2.78 1.8 3.68l3.21 3.21z" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-bold mb-4">MIGHT</h2>
+              <p className="text-center text-sm opacity-90">
+                Capture all enemy capitals to win.
+              </p>
+            </button>
           </div>
 
           {/* CREATIVE */}

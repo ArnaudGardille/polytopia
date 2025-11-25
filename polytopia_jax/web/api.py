@@ -29,6 +29,9 @@ from .replay_store import (
 )
 from .live_game_store import (
     create_perfection_game,
+    create_creative_game,
+    create_glory_game,
+    create_might_game,
     get_game as get_live_game,
     apply_action as apply_live_action,
     end_turn as end_live_turn,
@@ -253,6 +256,59 @@ async def start_live_perfection_game(config: LiveGameConfig):
         config.unlock_all_techs,
     )
     session = create_perfection_game(
+        opponents=config.opponents,
+        difficulty=config.difficulty,
+        strategy=config.strategy,
+        seed=config.seed,
+        view_options=view_options,
+    )
+    return _session_to_response(session, view_options)
+
+
+@app.post("/live/creative", tags=["Live"])
+async def start_live_creative_game(config: LiveGameConfig):
+    """Crée une nouvelle partie live du mode Creative (personnalisation complète)."""
+    view_options = resolve_view_options(
+        config.reveal_map,
+        config.unlock_all_techs,
+    )
+    session = create_creative_game(
+        opponents=config.opponents,
+        difficulty=config.difficulty,
+        strategy=config.strategy,
+        seed=config.seed,
+        view_options=view_options,
+        board_size=getattr(config, 'board_size', None),
+        max_turns=getattr(config, 'max_turns', None),
+    )
+    return _session_to_response(session, view_options)
+
+
+@app.post("/live/glory", tags=["Live"])
+async def start_live_glory_game(config: LiveGameConfig):
+    """Crée une nouvelle partie live du mode Glory (premier à 10,000 pts gagne)."""
+    view_options = resolve_view_options(
+        config.reveal_map,
+        config.unlock_all_techs,
+    )
+    session = create_glory_game(
+        opponents=config.opponents,
+        difficulty=config.difficulty,
+        strategy=config.strategy,
+        seed=config.seed,
+        view_options=view_options,
+    )
+    return _session_to_response(session, view_options)
+
+
+@app.post("/live/might", tags=["Live"])
+async def start_live_might_game(config: LiveGameConfig):
+    """Crée une nouvelle partie live du mode Might (capturer toutes les capitales ennemies)."""
+    view_options = resolve_view_options(
+        config.reveal_map,
+        config.unlock_all_techs,
+    )
+    session = create_might_game(
         opponents=config.opponents,
         difficulty=config.difficulty,
         strategy=config.strategy,

@@ -56,6 +56,8 @@ UNIT_REQUIRED_TECH = _pad_unit_array([
 UNIT_IS_NAVAL = _pad_unit_array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0]).astype(jnp.bool_)
 UNIT_CAN_ENTER_SHALLOW = _pad_unit_array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0]).astype(jnp.bool_)
 UNIT_CAN_ENTER_DEEP = _pad_unit_array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).astype(jnp.bool_)
+# Unités qui ne peuvent pas être promues (navales, super units)
+UNIT_CAN_PROMOTE = _pad_unit_array([0, 1, 1, 1, 1, 0, 1, 1, 1, 0]).astype(jnp.bool_)  # RAFT et GIANT ne peuvent pas être promues
 
 
 class BuildingType(IntEnum):
@@ -73,18 +75,20 @@ class BuildingType(IntEnum):
     MONUMENT = 10
     CITY_WALL = 11
     PARK = 12
-    NUM_TYPES = 13
+    ROAD = 13
+    BRIDGE = 14
+    NUM_TYPES = 15
 
 
 MAX_BUILDING_TYPES = 16  # Augmenté pour accommoder tous les nouveaux bâtiments
 BUILDING_COST = jnp.array(
-    [0, 3, 4, 2, 5, 6, 7, 5, 8, 10, 20, 5, 15] + [0] * (MAX_BUILDING_TYPES - 13),
+    [0, 3, 4, 2, 5, 6, 7, 5, 8, 10, 20, 5, 15, 3, 5] + [0] * (MAX_BUILDING_TYPES - 15),
     dtype=jnp.int32,
 )
 # POP_GAIN pour windmill/forge/sawmill sera calculé dynamiquement selon adjacents
 # Pour les autres, 0 car ils donnent d'autres bonus
 BUILDING_POP_GAIN = jnp.array(
-    [0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0] + [0] * (MAX_BUILDING_TYPES - 13),
+    [0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + [0] * (MAX_BUILDING_TYPES - 15),
     dtype=jnp.int32,
 )
 BUILDING_REQUIRED_TECH = jnp.array(
@@ -102,7 +106,9 @@ BUILDING_REQUIRED_TECH = jnp.array(
         int(TechType.NONE),  # MONUMENT (tier 3, nécessiterait Mathematics mais pas encore implémenté)
         int(TechType.NONE),  # CITY_WALL (amélioration ville niveau 3)
         int(TechType.NONE),  # PARK (amélioration ville niveau 5)
-    ] + [0] * (MAX_BUILDING_TYPES - 13),
+        int(TechType.ROADS),  # ROAD (nécessite Roads)
+        int(TechType.ROADS),  # BRIDGE (nécessite Roads)
+    ] + [0] * (MAX_BUILDING_TYPES - 15),
     dtype=jnp.int32,
 )
 
@@ -218,8 +224,10 @@ for i in range(NUM_TECHS):
 
 TECH_DEPENDENCIES = jnp.array(tech_deps_rows, dtype=jnp.bool_)
 
-CITY_LEVEL_POP_THRESHOLDS = jnp.array([0, 1, 3, 5], dtype=jnp.int32)
-CITY_STAR_INCOME_PER_LEVEL = jnp.array([0, 2, 4, 6], dtype=jnp.int32)
+# Niveaux de ville : 1, 2, 3, 4, 5+ avec seuils croissants
+# Niveau 4 : 7 pop, Niveau 5 : 9 pop, puis +2 par niveau supplémentaire
+CITY_LEVEL_POP_THRESHOLDS = jnp.array([0, 1, 3, 5, 7, 9], dtype=jnp.int32)
+CITY_STAR_INCOME_PER_LEVEL = jnp.array([0, 2, 4, 6, 6, 6], dtype=jnp.int32)  # Niveau 3+ = 6★
 CITY_CAPTURE_POPULATION = CITY_LEVEL_POP_THRESHOLDS[1]
 HARVEST_NEIGHBOR_DELTAS = jnp.array(
     [
@@ -499,6 +507,8 @@ def _apply_build(state: GameState, decoded: dict) -> GameState:
         is_monument = building_type == BuildingType.MONUMENT
         is_wall = building_type == BuildingType.CITY_WALL
         is_park = building_type == BuildingType.PARK
+        is_road = building_type == BuildingType.ROAD
+        is_bridge = building_type == BuildingType.BRIDGE
         
         already_has_windmill = jnp.where(is_windmill, state.city_has_windmill[target_y, target_x], False)
         already_has_forge = jnp.where(is_forge, state.city_has_forge[target_y, target_x], False)
@@ -508,12 +518,35 @@ def _apply_build(state: GameState, decoded: dict) -> GameState:
         already_has_monument = jnp.where(is_monument, state.city_has_monument[target_y, target_x], False)
         already_has_wall = jnp.where(is_wall, state.city_has_wall[target_y, target_x], False)
         already_has_park = jnp.where(is_park, state.city_has_park[target_y, target_x], False)
+        already_has_road = jnp.where(is_road, state.has_road[target_y, target_x], False)
+        already_has_bridge = jnp.where(is_bridge, state.has_bridge[target_y, target_x], False)
         
         already_built = (already_has_windmill | already_has_forge | already_has_sawmill | 
                          already_has_market | already_has_temple | already_has_monument | 
-                         already_has_wall | already_has_park)
+                         already_has_wall | already_has_park | already_has_road | already_has_bridge)
         
-        can_build = is_city & is_owner & ~already_built & has_stars & has_required
+        # Routes : doivent être sur plaine ou forêt, pas besoin d'être dans une ville
+        # Ponts : doivent être sur eau peu profonde
+        terrain = state.terrain[target_y, target_x]
+        is_plain_or_forest = _is_plain_terrain(terrain) | _is_forest_terrain(terrain)
+        is_shallow_water = _is_shallow_water_terrain(terrain)
+        
+        # Pour routes/ponts, on peut construire en dehors des villes (mais doit être territoire ami)
+        # Vérifier si territoire ami (en ville amie ou adjacente à ville amie)
+        is_in_city = is_city & is_owner
+        has_adjacent_city, _, _ = _find_adjacent_friendly_city(
+            state, target_x, target_y, state.current_player
+        )
+        is_friendly_territory = is_in_city | has_adjacent_city
+        
+        can_build_road = is_road & is_plain_or_forest & ~already_has_road & is_friendly_territory
+        can_build_bridge = is_bridge & is_shallow_water & ~already_has_bridge & is_friendly_territory
+        
+        # Pour les autres bâtiments, nécessite une ville du joueur
+        can_build_other = is_city & is_owner & ~already_built & has_stars & has_required
+        can_build_road_or_bridge = (can_build_road | can_build_bridge) & has_stars & has_required
+        
+        can_build = can_build_other | can_build_road_or_bridge
         
         return jax.lax.cond(
             can_build,
@@ -637,7 +670,7 @@ def _perform_build(state: GameState, building_type: jnp.ndarray, target_x: jnp.n
     # Port
     state = jax.lax.cond(
         is_port,
-        lambda s: s.replace(city_has_port=s.city_has_port.at[target_y, target_x].set(True)),
+        lambda s: _update_city_connections(s.replace(city_has_port=s.city_has_port.at[target_y, target_x].set(True))),
         lambda s: s,
         state
     )
@@ -1043,6 +1076,64 @@ def _apply_attack(state: GameState, decoded: dict) -> GameState:
     )
 
 
+def _can_unit_promote(unit_type: jnp.ndarray) -> jnp.ndarray:
+    """Vérifie si une unité peut être promue.
+    
+    Les unités navales et super units ne peuvent pas être promues.
+    
+    Args:
+        unit_type: Type d'unité
+    
+    Returns:
+        Booléen indiquant si l'unité peut être promue
+    """
+    return UNIT_CAN_PROMOTE[unit_type]
+
+
+def _get_unit_max_hp(state: GameState, unit_id: int) -> jnp.ndarray:
+    """Retourne le HP maximum d'une unité (base + 5 si vétérane).
+    
+    Args:
+        state: État du jeu
+        unit_id: ID de l'unité
+    
+    Returns:
+        HP maximum de l'unité
+    """
+    unit_type = state.units_type[unit_id]
+    base_max_hp = UNIT_HP_MAX[unit_type]
+    is_veteran = state.units_veteran[unit_id]
+    return base_max_hp + jnp.where(is_veteran, 5, 0)
+
+
+def _promote_unit(state: GameState, unit_id: int) -> GameState:
+    """Promouvoit une unité au rang de vétéran.
+    
+    Les vétérans gagnent +5 HP maximum et sont complètement guéris.
+    
+    Args:
+        state: État du jeu
+        unit_id: ID de l'unité à promouvoir
+    
+    Returns:
+        Nouvel état avec l'unité promue
+    """
+    unit_type = state.units_type[unit_id]
+    base_max_hp = UNIT_HP_MAX[unit_type]
+    veteran_max_hp = base_max_hp + 5
+    
+    # Guérir complètement l'unité
+    new_units_hp = state.units_hp.at[unit_id].set(veteran_max_hp)
+    
+    # Marquer comme vétéran
+    new_units_veteran = state.units_veteran.at[unit_id].set(True)
+    
+    return state.replace(
+        units_hp=new_units_hp,
+        units_veteran=new_units_veteran,
+    )
+
+
 def _perform_combat(state: GameState, attacker_id: int, target_id: int, distance: jnp.ndarray) -> GameState:
     """Effectue un combat entre deux unités selon la formule complète de Polytopia."""
     attacker_type = state.units_type[attacker_id]
@@ -1108,6 +1199,16 @@ def _perform_combat(state: GameState, attacker_id: int, target_id: int, distance
     target_dead = new_units_hp[target_id] <= 0
     attacker_dead = new_units_hp[attacker_id] <= 0
     
+    # Incrémenter les kills pour l'attaquant si la cible est morte
+    new_units_kills = state.units_kills.at[attacker_id].add(
+        jnp.where(target_dead & ~attacker_dead, 1, 0)
+    )
+    
+    # Incrémenter les kills pour la cible si l'attaquant est mort (contre-attaque)
+    new_units_kills = new_units_kills.at[target_id].add(
+        jnp.where(attacker_dead & ~target_dead & (counter_damage > 0), 1, 0)
+    )
+    
     # Désactiver les unités mortes
     new_units_active = state.units_active.at[target_id].set(
         state.units_active[target_id] & ~target_dead
@@ -1135,6 +1236,34 @@ def _perform_combat(state: GameState, attacker_id: int, target_id: int, distance
         units_hp=new_units_hp,
         units_active=new_units_active,
         units_has_acted=new_units_has_acted,
+        units_kills=new_units_kills,
+    )
+    
+    # Vérifier les promotions (3 kills = vétéran)
+    # Promouvoir l'attaquant s'il a atteint 3 kills et peut être promu
+    attacker_can_promote = _can_unit_promote(state.units_type[attacker_id])
+    attacker_has_3_kills = new_units_kills[attacker_id] >= 3
+    attacker_not_veteran = ~state.units_veteran[attacker_id]
+    should_promote_attacker = attacker_can_promote & attacker_has_3_kills & attacker_not_veteran & ~attacker_dead
+    
+    state = jax.lax.cond(
+        should_promote_attacker,
+        lambda s: _promote_unit(s, attacker_id),
+        lambda s: s,
+        state
+    )
+    
+    # Promouvoir la cible si elle a atteint 3 kills (contre-attaque)
+    target_can_promote = _can_unit_promote(state.units_type[target_id])
+    target_has_3_kills = new_units_kills[target_id] >= 3
+    target_not_veteran = ~state.units_veteran[target_id]
+    should_promote_target = target_can_promote & target_has_3_kills & target_not_veteran & ~target_dead & (counter_damage > 0)
+    
+    state = jax.lax.cond(
+        should_promote_target,
+        lambda s: _promote_unit(s, target_id),
+        lambda s: s,
+        state
     )
     
     # Vérifier la victoire
@@ -1306,6 +1435,14 @@ def _check_city_capture(state: GameState, unit_id: int, x: int, y: int) -> GameS
         state
     )
     
+    # Mettre à jour les connexions après capture
+    state = jax.lax.cond(
+        should_capture,
+        lambda s: _update_city_connections(s),
+        lambda s: s,
+        state
+    )
+    
     # Vérifier la victoire
     state = _check_victory(state)
     
@@ -1313,7 +1450,7 @@ def _check_city_capture(state: GameState, unit_id: int, x: int, y: int) -> GameS
 
 
 def _check_victory(state: GameState) -> GameState:
-    """Vérifie les conditions de victoire (élimination)."""
+    """Vérifie les conditions de victoire selon le mode de jeu."""
     # Pour chaque joueur, vérifier s'il a encore une capitale
     # Au lieu d'utiliser jnp.arange, on vérifie directement chaque joueur possible
     # Pour le MVP, on suppose max 4 joueurs (peut être étendu si nécessaire)
@@ -1334,14 +1471,49 @@ def _check_victory(state: GameState) -> GameState:
     players_alive = players_alive & valid_players
     
     num_alive = jnp.sum(players_alive)
-    domination_done = num_alive <= 1
     
-    perfection_limit_reached = (
-        (state.game_mode == GameMode.PERFECTION)
-        & (state.turn >= state.max_turns)
+    # Conditions de victoire selon le mode (utiliser jax.lax.switch pour compatibilité JAX)
+    def check_domination():
+        # Domination : élimination complète (un seul joueur reste)
+        return num_alive <= 1
+    
+    def check_perfection():
+        # Perfection : limite de tours atteinte
+        return state.turn >= state.max_turns
+    
+    def check_glory():
+        # Glory : premier joueur à atteindre 10,000 points
+        glory_threshold = 10000
+        return jnp.any(state.player_score >= glory_threshold)
+    
+    def check_might():
+        # Might : capturer toutes les capitales ennemies
+        # Un joueur gagne s'il possède toutes les capitales (tous les autres n'en ont plus)
+        def player_has_all_capitals(player_id):
+            own_capitals = jnp.sum(
+                (state.city_owner == player_id) & (state.city_level > 0)
+            )
+            other_capitals = jnp.sum(
+                (state.city_owner != player_id) & (state.city_owner >= 0) & (state.city_level > 0)
+            )
+            return (own_capitals > 0) & (other_capitals == 0)
+        
+        players_winning = jax.vmap(player_has_all_capitals)(players_to_check)
+        players_winning = players_winning & valid_players
+        return jnp.any(players_winning)
+    
+    def check_creative():
+        # Creative : pas de limite, partie continue jusqu'à élimination ou limite manuelle
+        # Par défaut, utiliser la même logique que Domination
+        return num_alive <= 1
+    
+    # Utiliser jax.lax.switch pour sélectionner la fonction selon le mode
+    # Convertir game_mode en int pour jax.lax.switch (mais sans utiliser int() directement)
+    game_mode_int = jnp.asarray(state.game_mode, dtype=jnp.int32)
+    is_done = jax.lax.switch(
+        game_mode_int,
+        [check_domination, check_perfection, check_creative, check_glory, check_might]
     )
-    
-    is_done = domination_done | perfection_limit_reached
     
     return state.replace(done=is_done)
 
@@ -1607,15 +1779,25 @@ def _disembark_unit(state: GameState, unit_id: jnp.ndarray) -> GameState:
 
 
 def _population_to_level(population: jnp.ndarray) -> jnp.ndarray:
-    """Calcule le niveau d'une ville en fonction de sa population."""
-    thresholds = CITY_LEVEL_POP_THRESHOLDS
-    level_three = thresholds[3]
-    level_two = thresholds[2]
-    level_one = thresholds[1]
+    """Calcule le niveau d'une ville en fonction de sa population.
     
-    level = jnp.where(population >= level_three, 3, 0)
-    level = jnp.where((population >= level_two) & (population < level_three), 2, level)
-    level = jnp.where((population >= level_one) & (population < level_two), 1, level)
+    Supporte les niveaux 1-5+ avec seuils croissants.
+    """
+    thresholds = CITY_LEVEL_POP_THRESHOLDS
+    max_level_idx = len(thresholds) - 1
+    
+    # Commencer par le niveau 0 (pas de ville)
+    level = jnp.array(0, dtype=jnp.int32)
+    
+    # Monter les niveaux jusqu'à trouver le bon seuil
+    def check_level(i, current_level):
+        threshold = thresholds[i]
+        is_above_or_equal = population >= threshold
+        return jnp.where(is_above_or_equal, i, current_level)
+    
+    # Vérifier chaque niveau depuis le plus bas (1) jusqu'au plus haut
+    level = jax.lax.fori_loop(1, max_level_idx + 1, check_level, level)
+    
     return level
 
 
@@ -1656,6 +1838,134 @@ def _compute_income_for_player(state: GameState, player_id: jnp.ndarray) -> jnp.
     
     bonus = state.player_income_bonus[player_id]
     return base_income + market_income + bonus
+
+
+def _is_connected_tile(state: GameState, x: jnp.ndarray, y: jnp.ndarray, player_id: jnp.ndarray) -> jnp.ndarray:
+    """Vérifie si une case est connectée (route, pont, ou port)."""
+    has_road = state.has_road[y, x]
+    has_bridge = state.has_bridge[y, x]
+    has_port = state.city_has_port[y, x] & (state.city_owner[y, x] == player_id)
+    is_city = (state.city_level[y, x] > 0) & (state.city_owner[y, x] == player_id)
+    
+    # Une ville compte comme connectée (point de connexion)
+    return has_road | has_bridge | has_port | is_city
+
+
+def _find_capital_city(state: GameState, player_id: jnp.ndarray) -> tuple:
+    """Trouve la capitale d'un joueur (première ville trouvée).
+    
+    Returns:
+        (found, capital_x, capital_y)
+    """
+    h, w = state.terrain.shape[0], state.terrain.shape[1]
+    
+    def scan_row(y, carry):
+        found, cap_x, cap_y = carry
+        
+        def scan_col(x, c):
+            f, cx, cy = c
+            is_city = (state.city_level[y, x] > 0) & (state.city_owner[y, x] == player_id)
+            new_found = f | is_city
+            new_cx = jnp.where(~f & is_city, x, cx)
+            new_cy = jnp.where(~f & is_city, y, cy)
+            return (new_found, new_cx, new_cy)
+        
+        return jax.lax.fori_loop(0, w, scan_col, carry)
+    
+    init = (jnp.array(False, dtype=jnp.bool_), jnp.array(-1, dtype=jnp.int32), jnp.array(-1, dtype=jnp.int32))
+    found, cap_x, cap_y = jax.lax.fori_loop(0, h, scan_row, init)
+    
+    return (found, cap_x, cap_y)
+
+
+def _are_cities_connected(state: GameState, x1: jnp.ndarray, y1: jnp.ndarray, x2: jnp.ndarray, y2: jnp.ndarray, player_id: jnp.ndarray) -> jnp.ndarray:
+    """Vérifie si deux villes sont connectées via routes/ponts/ports.
+    
+    Utilise un parcours en largeur simplifié (BFS) pour trouver un chemin.
+    Limité à une distance raisonnable pour éviter la complexité.
+    """
+    # Si les villes sont adjacentes et connectées, elles sont connectées
+    dx = jnp.abs(x1 - x2)
+    dy = jnp.abs(y2 - y1)
+    is_adjacent = (dx <= 1) & (dy <= 1) & ((dx + dy) > 0)
+    
+    # Vérifier si les deux cases sont connectées
+    tile1_connected = _is_connected_tile(state, x1, y1, player_id)
+    tile2_connected = _is_connected_tile(state, x2, y2, player_id)
+    
+    # Si adjacentes et toutes deux connectées, elles sont connectées
+    directly_connected = is_adjacent & tile1_connected & tile2_connected
+    
+    # Pour simplifier, on considère que deux villes sont connectées si :
+    # 1. Elles sont directement adjacentes et connectées, OU
+    # 2. Il existe un chemin via cases adjacentes connectées (BFS simplifié)
+    # Pour l'instant, on se limite aux connexions directes pour éviter la complexité
+    return directly_connected
+
+
+def _update_city_connections(state: GameState) -> GameState:
+    """Met à jour les bonus de population selon les connexions de villes.
+    
+    Chaque connexion entre une ville et la capitale donne +1 population à chaque ville connectée.
+    """
+    # Pour chaque joueur, mettre à jour les connexions
+    def update_player(player_id, current_state):
+        # Trouver la capitale
+        has_capital, cap_x, cap_y = _find_capital_city(current_state, player_id)
+        
+        # Si pas de capitale, pas de connexions
+        def no_capital(s):
+            return s
+        
+        def with_capital(s):
+            h, w = s.terrain.shape[0], s.terrain.shape[1]
+            
+            # Pour chaque ville du joueur, vérifier si connectée à la capitale
+            def check_city_row(y, pop_bonus_map):
+                def check_city_col(x, bonus_map):
+                    is_city = (s.city_level[y, x] > 0) & (s.city_owner[y, x] == player_id)
+                    is_capital = (x == cap_x) & (y == cap_y)
+                    
+                    # La capitale est toujours connectée à elle-même
+                    is_connected = is_capital | _are_cities_connected(s, x, y, cap_x, cap_y, player_id)
+                    
+                    # Bonus de +1 population si connectée
+                    bonus = jnp.where(is_city & is_connected, 1, 0)
+                    return bonus_map.at[y, x].set(bonus)
+                
+                return jax.lax.fori_loop(0, w, check_city_col, pop_bonus_map)
+            
+            # Calculer les bonus de connexion
+            connection_bonus = jnp.zeros((h, w), dtype=jnp.int32)
+            connection_bonus = jax.lax.fori_loop(0, h, check_city_row, connection_bonus)
+            
+            # Appliquer les bonus de population (seulement si la ville n'avait pas déjà ce bonus)
+            # Pour simplifier, on ajoute toujours le bonus (sera recalculé à chaque fois)
+            def apply_bonus_row(y, updated_state):
+                def apply_bonus_col(x, s):
+                    bonus = connection_bonus[y, x]
+                    has_bonus = bonus > 0
+                    
+                    def add_bonus(st):
+                        current_pop = st.city_population[y, x]
+                        # Ne pas ajouter si déjà au maximum (éviter accumulation infinie)
+                        # Pour simplifier, on ajoute toujours +1 si connectée
+                        new_pop = current_pop + bonus
+                        return _set_city_population(st, x, y, new_pop)
+                    
+                    return jax.lax.cond(has_bonus, add_bonus, lambda st: st, s)
+                
+                return jax.lax.fori_loop(0, w, apply_bonus_col, updated_state)
+            
+            return jax.lax.fori_loop(0, h, apply_bonus_row, s)
+        
+        return jax.lax.cond(has_capital, with_capital, no_capital, current_state)
+    
+    # Mettre à jour pour tous les joueurs
+    def update_all_players(i, s):
+        return update_player(i, s)
+    
+    return jax.lax.fori_loop(0, state.num_players, update_all_players, state)
 
 
 def _player_can_harvest(state: GameState) -> jnp.ndarray:

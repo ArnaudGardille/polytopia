@@ -69,8 +69,8 @@ def apply_view_overrides(state: dict, options: ViewOptions) -> dict:
             visibility_mask = [[int(cell) for cell in row] for row in tiles_visible[current_player]]
             new_state["visibility_mask"] = visibility_mask
         else:
-            # Fallback : toute la carte visible si pas de données de vision
-            new_state["visibility_mask"] = _build_full_visibility(state)
+            # Pas de données de vision disponibles : masque à None
+            new_state["visibility_mask"] = None
 
     return new_state
 

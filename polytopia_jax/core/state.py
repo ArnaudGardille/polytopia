@@ -58,6 +58,9 @@ class GameMode(IntEnum):
     """Modes de jeu disponibles."""
     DOMINATION = 0
     PERFECTION = 1
+    CREATIVE = 2
+    GLORY = 3
+    MIGHT = 4
 
 
 class TechType(IntEnum):
@@ -98,6 +101,28 @@ class ResourceType(IntEnum):
     NUM_TYPES = 4
 
 
+class MapSize(IntEnum):
+    """Tailles de carte disponibles."""
+    TINY = 0      # 11x11, 121 tiles
+    SMALL = 1     # 14x14, 196 tiles
+    NORMAL = 2    # 16x16, 256 tiles
+    LARGE = 3     # 18x18, 324 tiles
+    HUGE = 4      # 20x20, 400 tiles
+    MASSIVE = 5   # 30x30, 900 tiles
+    NUM_SIZES = 6
+
+
+class MapType(IntEnum):
+    """Types de cartes disponibles."""
+    DRYLANDS = 0      # 0-10% eau
+    LAKES = 1         # 25-30% eau
+    CONTINENTS = 2    # 40-70% eau
+    PANGEA = 3        # 40-60% eau
+    ARCHIPELAGO = 4   # 60-80% eau
+    WATERWORLD = 5    # 90-100% eau
+    NUM_TYPES = 6
+
+
 @struct.dataclass
 class GameState:
     """État du jeu représenté comme un pytree JAX.
@@ -122,6 +147,10 @@ class GameState:
     city_has_wall: jnp.ndarray  # [H, W] - présence de murs (booléen)
     city_has_park: jnp.ndarray  # [H, W] - présence d'un parc (booléen)
     
+    # Routes et ponts
+    has_road: jnp.ndarray  # [H, W] - présence d'une route (booléen)
+    has_bridge: jnp.ndarray  # [H, W] - présence d'un pont (booléen)
+    
     # Unités
     units_type: jnp.ndarray  # [N_units_max] - types d'unités
     units_pos: jnp.ndarray  # [N_units_max, 2] - positions (x, y)
@@ -130,6 +159,8 @@ class GameState:
     units_active: jnp.ndarray  # [N_units_max] - booléen indiquant si l'unité existe
     units_has_acted: jnp.ndarray  # [N_units_max] - booléen action effectuée ce tour
     units_payload_type: jnp.ndarray  # [N_units_max] - type original lorsqu'en radeau/naval
+    units_kills: jnp.ndarray  # [N_units_max] - nombre de kills de chaque unité
+    units_veteran: jnp.ndarray  # [N_units_max] - booléen indiquant si l'unité est vétérane
     
     # Économie
     player_stars: jnp.ndarray  # [num_players] - ressources économiques de chaque joueur
@@ -143,6 +174,7 @@ class GameState:
     player_income_bonus: jnp.ndarray  # [num_players] - bonus d'étoiles par tour (difficulté)
     resource_type: jnp.ndarray  # [H, W] - type de ressource présente sur la case
     resource_available: jnp.ndarray  # [H, W] - True si la ressource n'a pas encore été récoltée
+    has_ruin: jnp.ndarray  # [H, W] - True si la case contient une ruine non explorée
     
     # Vision et exploration
     tiles_explored: jnp.ndarray  # [num_players, H, W] - booléen par joueur et case (exploration permanente)
@@ -186,6 +218,8 @@ class GameState:
             city_has_monument=jnp.zeros((height, width), dtype=jnp.bool_),
             city_has_wall=jnp.zeros((height, width), dtype=jnp.bool_),
             city_has_park=jnp.zeros((height, width), dtype=jnp.bool_),
+            has_road=jnp.zeros((height, width), dtype=jnp.bool_),
+            has_bridge=jnp.zeros((height, width), dtype=jnp.bool_),
             units_type=jnp.zeros(max_units, dtype=jnp.int32),
             units_pos=jnp.zeros((max_units, 2), dtype=jnp.int32),
             units_hp=jnp.zeros(max_units, dtype=jnp.int32),
@@ -193,6 +227,8 @@ class GameState:
             units_active=jnp.zeros(max_units, dtype=jnp.bool_),
             units_has_acted=jnp.zeros(max_units, dtype=jnp.bool_),
             units_payload_type=jnp.zeros(max_units, dtype=jnp.int32),
+            units_kills=jnp.zeros(max_units, dtype=jnp.int32),
+            units_veteran=jnp.zeros(max_units, dtype=jnp.bool_),
             player_stars=jnp.zeros(num_players, dtype=jnp.int32),
             player_techs=jnp.zeros((num_players, num_techs), dtype=jnp.bool_),
             player_score=jnp.zeros(num_players, dtype=jnp.int32),
@@ -204,6 +240,7 @@ class GameState:
             player_income_bonus=jnp.zeros(num_players, dtype=jnp.int32),
             resource_type=jnp.zeros((height, width), dtype=jnp.int32),
             resource_available=jnp.zeros((height, width), dtype=jnp.bool_),
+            has_ruin=jnp.zeros((height, width), dtype=jnp.bool_),
             tiles_explored=jnp.zeros((num_players, height, width), dtype=jnp.bool_),
             tiles_visible=jnp.zeros((num_players, height, width), dtype=jnp.bool_),
             current_player=jnp.array(0, dtype=jnp.int32),

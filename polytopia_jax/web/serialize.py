@@ -47,6 +47,8 @@ def state_to_dict(state: GameState) -> dict:
         units_owner_arr = np.array(state.units_owner, copy=True)
         units_has_acted_arr = np.array(state.units_has_acted, copy=True)
         units_payload_arr = np.array(state.units_payload_type, copy=True)
+        units_kills_arr = np.array(state.units_kills, copy=True)
+        units_veteran_arr = np.array(state.units_veteran, copy=True)
         
         for i in active_indices:
             unit = {
@@ -57,6 +59,8 @@ def state_to_dict(state: GameState) -> dict:
                 "owner": int(units_owner_arr[i]),
                 "has_acted": bool(units_has_acted_arr[i]),
                 "payload_type": int(units_payload_arr[i]),
+                "kills": int(units_kills_arr[i]),
+                "veteran": bool(units_veteran_arr[i]),
             }
             active_units.append(unit)
     
@@ -185,6 +189,8 @@ def dict_to_state(data: dict) -> GameState:
         units_active = jnp.zeros(max_units, dtype=jnp.bool_)
         units_has_acted = jnp.zeros(max_units, dtype=jnp.bool_)
         units_payload_type = jnp.zeros(max_units, dtype=jnp.int32)
+        units_kills = jnp.zeros(max_units, dtype=jnp.int32)
+        units_veteran = jnp.zeros(max_units, dtype=jnp.bool_)
         
         for unit in units:
             unit_id = unit.get("id", 0)
@@ -197,6 +203,8 @@ def dict_to_state(data: dict) -> GameState:
                 units_active = units_active.at[unit_id].set(True)
                 units_has_acted = units_has_acted.at[unit_id].set(unit.get("has_acted", False))
                 units_payload_type = units_payload_type.at[unit_id].set(unit.get("payload_type", 0))
+                units_kills = units_kills.at[unit_id].set(unit.get("kills", 0))
+                units_veteran = units_veteran.at[unit_id].set(unit.get("veteran", False))
         
         state = state.replace(
             units_type=units_type,
@@ -206,6 +214,8 @@ def dict_to_state(data: dict) -> GameState:
             units_active=units_active,
             units_has_acted=units_has_acted,
             units_payload_type=units_payload_type,
+            units_kills=units_kills,
+            units_veteran=units_veteran,
         )
     
     # Restaurer l'état du jeu

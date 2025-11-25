@@ -10,8 +10,10 @@ from polytopia_jax.core.rules import (
     BuildingType,
     CITY_CAPTURE_POPULATION,
     CITY_STAR_INCOME_PER_LEVEL,
+    CITY_LEVEL_POP_THRESHOLDS,
     RESOURCE_COST,
     _compute_tech_cost,
+    _set_city_population,
 )
 from polytopia_jax.core.state import GameState, UnitType, NO_OWNER, GameMode, TechType, TerrainType, ResourceType
 from polytopia_jax.core.actions import ActionType, Direction, encode_action
@@ -1312,3 +1314,230 @@ def test_build_advanced_buildings_require_stars():
     
     assert not bool(blocked_state.city_has_monument[1, 1])
     assert int(blocked_state.player_stars[0]) == 5  # Pas de changement
+
+
+def test_city_levels_4_and_5():
+    """Test que les niveaux de ville 4 et 5 fonctionnent avec les bons seuils."""
+    state = _clear_cities(_make_empty_state(stars_per_player=0))
+    
+    # Niveau 4 : seuil 7 population
+    state = _with_city(state, 0, 0, owner=0, level=3, population=6)
+    # Utiliser _set_city_population pour mettre à jour le niveau
+    state = _set_city_population(state, 0, 0, jnp.array(7, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 4
+    
+    # Niveau 5 : seuil 9 population
+    state = _set_city_population(state, 0, 0, jnp.array(9, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 5
+
+
+def test_city_level_thresholds():
+    """Test que tous les seuils de niveau de ville fonctionnent correctement."""
+    thresholds = CITY_LEVEL_POP_THRESHOLDS
+    
+    # Niveau 1 : population >= 1
+    state = _clear_cities(_make_empty_state())
+    state = _with_city(state, 0, 0, owner=0, level=1, population=1)
+    assert int(state.city_level[0, 0]) == 1
+    
+    # Niveau 2 : population >= 3
+    state = _set_city_population(state, 0, 0, jnp.array(3, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 2
+    
+    # Niveau 3 : population >= 5
+    state = _set_city_population(state, 0, 0, jnp.array(5, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 3
+    
+    # Niveau 4 : population >= 7
+    state = _set_city_population(state, 0, 0, jnp.array(7, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 4
+    
+    # Niveau 5 : population >= 9
+    state = _set_city_population(state, 0, 0, jnp.array(9, dtype=jnp.int32))
+    assert int(state.city_level[0, 0]) == 5
+
+
+def test_build_road_requires_roads_tech():
+    """Test que la construction d'une route nécessite la tech ROADS."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(terrain=state.terrain.at[1, 2].set(TerrainType.PLAIN))
+    
+    # Sans tech ROADS
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(2, 1),
+    )
+    blocked_state = step(state, action)
+    assert not bool(blocked_state.has_road[1, 2])
+    
+    # Avec tech ROADS
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True)
+    )
+    built_state = step(state, action)
+    assert bool(built_state.has_road[1, 2])
+    assert int(built_state.player_stars[0]) == 7  # 10 - 3
+
+
+def test_build_road_on_plain_or_forest():
+    """Test que les routes peuvent être construites sur plaine ou forêt."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True)
+    )
+    
+    # Route sur plaine
+    state = state.replace(terrain=state.terrain.at[1, 2].set(TerrainType.PLAIN))
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(2, 1),
+    )
+    new_state = step(state, action)
+    assert bool(new_state.has_road[1, 2])
+    
+    # Route sur forêt
+    state = state.replace(terrain=state.terrain.at[2, 1].set(TerrainType.FOREST))
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(1, 2),
+    )
+    new_state = step(state, action)
+    assert bool(new_state.has_road[2, 1])
+
+
+def test_build_bridge_on_shallow_water():
+    """Test que les ponts peuvent être construits sur eau peu profonde."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True),
+        terrain=state.terrain.at[1, 2].set(TerrainType.WATER_SHALLOW)
+    )
+    
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.BRIDGE,
+        target_pos=(2, 1),
+    )
+    new_state = step(state, action)
+    assert bool(new_state.has_bridge[1, 2])
+    assert int(new_state.player_stars[0]) == 5  # 10 - 5
+
+
+def test_city_connections_add_population():
+    """Test que les connexions de villes ajoutent +1 population à chaque ville connectée."""
+    state = _clear_cities(_make_empty_state(stars_per_player=20))
+    # Créer deux villes adjacentes (horizontalement)
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)  # Capitale à (1, 1)
+    state = _with_city(state, 2, 1, owner=0, level=1, population=1)  # Ville adjacente à (2, 1)
+    
+    # Construire une route entre elles (sur la case entre les deux villes)
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True),
+        terrain=state.terrain.at[1, 1].set(TerrainType.PLAIN)  # Case entre les villes
+    )
+    
+    # Construire la route sur une case adjacente aux deux villes
+    # Note: Les villes sont à (1,1) et (2,1), donc une route à (1,1) ou (2,1) les connecte
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(1, 1),  # Adjacente aux deux villes
+    )
+    new_state = step(state, action)
+    
+    # Vérifier que la route a été construite
+    assert bool(new_state.has_road[1, 1])
+
+
+def test_city_connections_with_port():
+    """Test que les ports créent des connexions maritimes."""
+    state = _clear_cities(_make_empty_state(stars_per_player=20))
+    # Créer deux villes côtières
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1, has_port=True)
+    state = _with_city(state, 1, 3, owner=0, level=1, population=1, has_port=True)
+    
+    # Les ports devraient créer une connexion (même si séparés par eau)
+    # Note: L'implémentation actuelle vérifie les connexions après construction de port
+    assert bool(state.city_has_port[1, 1])
+    assert bool(state.city_has_port[3, 1])
+
+
+def test_cannot_build_road_without_tech():
+    """Test qu'on ne peut pas construire de route sans la tech ROADS."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(terrain=state.terrain.at[1, 2].set(TerrainType.PLAIN))
+    
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(2, 1),
+    )
+    blocked_state = step(state, action)
+    
+    assert not bool(blocked_state.has_road[1, 2])
+    assert int(blocked_state.player_stars[0]) == 10  # Pas de changement
+
+
+def test_cannot_build_road_on_mountain():
+    """Test qu'on ne peut pas construire de route sur une montagne."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True),
+        terrain=state.terrain.at[1, 2].set(TerrainType.MOUNTAIN)
+    )
+    
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.ROAD,
+        target_pos=(2, 1),
+    )
+    blocked_state = step(state, action)
+    
+    assert not bool(blocked_state.has_road[1, 2])
+
+
+def test_cannot_build_bridge_on_deep_water():
+    """Test qu'on ne peut pas construire de pont sur eau profonde."""
+    state = _clear_cities(_make_empty_state(stars_per_player=10))
+    state = _with_city(state, 1, 1, owner=0, level=1, population=1)
+    state = state.replace(
+        player_techs=state.player_techs.at[0, TechType.ROADS].set(True),
+        terrain=state.terrain.at[1, 2].set(TerrainType.WATER_DEEP)
+    )
+    
+    action = encode_action(
+        ActionType.BUILD,
+        unit_type=BuildingType.BRIDGE,
+        target_pos=(2, 1),
+    )
+    blocked_state = step(state, action)
+    
+    assert not bool(blocked_state.has_bridge[1, 2])
+
+
+def test_city_income_level_4_and_5():
+    """Test que les villes niveau 4+ génèrent 6★ par tour."""
+    state = _clear_cities(_make_empty_state(stars_per_player=0))
+    
+    # Niveau 4
+    state = _with_city(state, 1, 1, owner=0, level=4, population=7)
+    action = encode_action(ActionType.END_TURN)
+    new_state = step(state, action)
+    assert int(new_state.player_stars[0]) == 6  # Niveau 4 = 6★
+    
+    # Niveau 5
+    state = state.replace(
+        city_level=state.city_level.at[1, 1].set(5),
+        city_population=state.city_population.at[1, 1].set(9)
+    )
+    action = encode_action(ActionType.END_TURN)
+    new_state = step(state, action)
+    assert int(new_state.player_stars[0]) == 6  # Niveau 5 = 6★

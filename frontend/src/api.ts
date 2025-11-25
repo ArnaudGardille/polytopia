@@ -91,15 +91,17 @@ function mapLiveResponse(data: LiveGameApiResponse): LiveGameStateResponse {
   };
 }
 
-interface CreatePerfectionPayload {
+interface CreateGamePayload {
   opponents: number;
   difficulty: Difficulty;
   strategy?: string;
   seed?: number;
+  boardSize?: number;
+  maxTurns?: number;
 }
 
 export async function createPerfectionGame(
-  payload: CreatePerfectionPayload
+  payload: CreateGamePayload
 ): Promise<LiveGameStateResponse> {
   const body: Record<string, unknown> = {
     opponents: payload.opponents,
@@ -113,6 +115,78 @@ export async function createPerfectionGame(
   }
 
   const data = await fetchAPI<LiveGameApiResponse>('/live/perfection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return mapLiveResponse(data);
+}
+
+export async function createCreativeGame(
+  payload: CreateGamePayload
+): Promise<LiveGameStateResponse> {
+  const body: Record<string, unknown> = {
+    opponents: payload.opponents,
+    difficulty: payload.difficulty,
+  };
+  if (payload.seed !== undefined) {
+    body.seed = payload.seed;
+  }
+  if (payload.strategy) {
+    body.strategy = payload.strategy;
+  }
+  if (payload.boardSize !== undefined) {
+    body.board_size = payload.boardSize;
+  }
+  if (payload.maxTurns !== undefined) {
+    body.max_turns = payload.maxTurns;
+  }
+
+  const data = await fetchAPI<LiveGameApiResponse>('/live/creative', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return mapLiveResponse(data);
+}
+
+export async function createGloryGame(
+  payload: CreateGamePayload
+): Promise<LiveGameStateResponse> {
+  const body: Record<string, unknown> = {
+    opponents: payload.opponents,
+    difficulty: payload.difficulty,
+  };
+  if (payload.seed !== undefined) {
+    body.seed = payload.seed;
+  }
+  if (payload.strategy) {
+    body.strategy = payload.strategy;
+  }
+
+  const data = await fetchAPI<LiveGameApiResponse>('/live/glory', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return mapLiveResponse(data);
+}
+
+export async function createMightGame(
+  payload: CreateGamePayload
+): Promise<LiveGameStateResponse> {
+  const body: Record<string, unknown> = {
+    opponents: payload.opponents,
+    difficulty: payload.difficulty,
+  };
+  if (payload.seed !== undefined) {
+    body.seed = payload.seed;
+  }
+  if (payload.strategy) {
+    body.strategy = payload.strategy;
+  }
+
+  const data = await fetchAPI<LiveGameApiResponse>('/live/might', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

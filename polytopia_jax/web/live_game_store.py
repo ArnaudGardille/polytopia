@@ -250,6 +250,78 @@ class LiveGameNotFound(Exception):
     """Levée quand une partie live est introuvable."""
 
 
+def create_creative_game(
+    opponents: int = 3,
+    difficulty: str = "crazy",
+    strategy: Optional[str] = None,
+    seed: Optional[int] = None,
+    view_options: Optional[ViewOptions] = None,
+    board_size: Optional[int] = None,
+    max_turns: Optional[int] = None,
+) -> LiveGameSession:
+    """Crée une partie Creative live avec personnalisation complète.
+    
+    Args:
+        opponents: Nombre d'adversaires IA
+        difficulty: Difficulté (easy, normal, hard, crazy)
+        strategy: Stratégie IA (idle, random, rush, economy)
+        seed: Seed optionnelle pour reproductibilité
+        view_options: Options d'affichage
+        board_size: Taille de la carte (par défaut calculée selon adversaires)
+        max_turns: Limite de tours (None = pas de limite)
+    """
+    num_players = _clamp_players(opponents + 1)
+    if board_size is None:
+        board_size = _compute_board_size(opponents)
+    else:
+        board_size = max(8, min(30, board_size))  # Limiter entre 8 et 30
+    
+    key_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
+    key = jax.random.PRNGKey(key_seed)
+
+    engine_config = EngineGameConfig(
+        height=board_size,
+        width=board_size,
+        num_players=num_players,
+        max_units=max(64, board_size * 2),
+        game_mode=GameMode.CREATIVE,
+        max_turns=max_turns if max_turns is not None else 999,
+    )
+
+    state = init_random(key, engine_config)
+    difficulty_preset = resolve_difficulty(difficulty)
+    strategy_name = resolve_strategy_name(strategy)
+    state = _apply_difficulty_bonuses(state, difficulty_preset)
+    ai_agents = {
+        player_id: StrategyAI(
+            player_id,
+            strategy_name=strategy_name,
+            seed=(key_seed + player_id),
+        )
+        for player_id in range(1, num_players)
+    }
+    
+    if max_turns is not None:
+        state = _enforce_turn_limit(state, max_turns)
+
+    game_id = uuid4().hex
+    session = LiveGameSession(
+        id=game_id,
+        state=state,
+        max_turns=max_turns if max_turns is not None else 999,
+        opponents=opponents,
+        difficulty=difficulty_preset.name,
+        ai_agents=ai_agents,
+        strategy=strategy_name,
+        view_options=view_options or resolve_view_options(),
+        initial_seed=key_seed,
+    )
+    session.state = _advance_ai_turns(session, session.max_turns)
+    _LIVE_GAMES[game_id] = session
+    _save_session(session)
+    return session
+
+
 def create_perfection_game(
     opponents: int = 3,
     difficulty: str = "crazy",
@@ -299,6 +371,112 @@ def create_perfection_game(
         initial_seed=key_seed,
     )
     session.state = _advance_ai_turns(session, PERFECTION_MAX_TURNS)
+    _LIVE_GAMES[game_id] = session
+    _save_session(session)
+    return session
+
+
+def create_glory_game(
+    opponents: int = 3,
+    difficulty: str = "crazy",
+    strategy: Optional[str] = None,
+    seed: Optional[int] = None,
+    view_options: Optional[ViewOptions] = None,
+) -> LiveGameSession:
+    """Crée une partie Glory live (premier à 10,000 pts gagne)."""
+    num_players = _clamp_players(opponents + 1)
+    board_size = _compute_board_size(opponents)
+    key_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
+    key = jax.random.PRNGKey(key_seed)
+
+    engine_config = EngineGameConfig(
+        height=board_size,
+        width=board_size,
+        num_players=num_players,
+        max_units=max(64, board_size * 2),
+        game_mode=GameMode.GLORY,
+        max_turns=999,  # Pas de limite de tours pour Glory
+    )
+
+    state = init_random(key, engine_config)
+    difficulty_preset = resolve_difficulty(difficulty)
+    strategy_name = resolve_strategy_name(strategy)
+    state = _apply_difficulty_bonuses(state, difficulty_preset)
+    ai_agents = {
+        player_id: StrategyAI(
+            player_id,
+            strategy_name=strategy_name,
+            seed=(key_seed + player_id),
+        )
+        for player_id in range(1, num_players)
+    }
+
+    game_id = uuid4().hex
+    session = LiveGameSession(
+        id=game_id,
+        state=state,
+        max_turns=999,
+        opponents=opponents,
+        difficulty=difficulty_preset.name,
+        ai_agents=ai_agents,
+        strategy=strategy_name,
+        view_options=view_options or resolve_view_options(),
+        initial_seed=key_seed,
+    )
+    session.state = _advance_ai_turns(session, 999)
+    _LIVE_GAMES[game_id] = session
+    _save_session(session)
+    return session
+
+
+def create_might_game(
+    opponents: int = 3,
+    difficulty: str = "crazy",
+    strategy: Optional[str] = None,
+    seed: Optional[int] = None,
+    view_options: Optional[ViewOptions] = None,
+) -> LiveGameSession:
+    """Crée une partie Might live (capturer toutes les capitales ennemies)."""
+    num_players = _clamp_players(opponents + 1)
+    board_size = _compute_board_size(opponents)
+    key_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
+    key = jax.random.PRNGKey(key_seed)
+
+    engine_config = EngineGameConfig(
+        height=board_size,
+        width=board_size,
+        num_players=num_players,
+        max_units=max(64, board_size * 2),
+        game_mode=GameMode.MIGHT,
+        max_turns=999,  # Pas de limite de tours pour Might
+    )
+
+    state = init_random(key, engine_config)
+    difficulty_preset = resolve_difficulty(difficulty)
+    strategy_name = resolve_strategy_name(strategy)
+    state = _apply_difficulty_bonuses(state, difficulty_preset)
+    ai_agents = {
+        player_id: StrategyAI(
+            player_id,
+            strategy_name=strategy_name,
+            seed=(key_seed + player_id),
+        )
+        for player_id in range(1, num_players)
+    }
+
+    game_id = uuid4().hex
+    session = LiveGameSession(
+        id=game_id,
+        state=state,
+        max_turns=999,
+        opponents=opponents,
+        difficulty=difficulty_preset.name,
+        ai_agents=ai_agents,
+        strategy=strategy_name,
+        view_options=view_options or resolve_view_options(),
+        initial_seed=key_seed,
+    )
+    session.state = _advance_ai_turns(session, 999)
     _LIVE_GAMES[game_id] = session
     _save_session(session)
     return session

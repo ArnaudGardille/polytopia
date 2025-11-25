@@ -10,6 +10,9 @@ import {
   listGames,
   getReplay,
   createPerfectionGame,
+  createCreativeGame,
+  createGloryGame,
+  createMightGame,
   sendLiveAction,
   endLiveTurn,
   getLiveGameState,
@@ -179,21 +182,41 @@ function App() {
     }
   };
 
-  const startPerfectionGame = async (config: GameConfig) => {
-    if (config.mode !== 'perfection') {
-      console.warn('Mode non supporté pour le live:', config.mode);
-      return;
-    }
+  const startLiveGame = async (config: GameConfig) => {
     setLiveStartError(null);
     setIsStartingLiveGame(true);
     try {
-      const session = await createPerfectionGame({
+      let session: LiveGameStateResponse;
+      const payload = {
         opponents: config.opponents,
         difficulty: config.difficulty,
         strategy: config.strategy,
-      });
+        boardSize: config.boardSize,
+        maxTurns: config.maxTurns,
+      };
+
+      switch (config.mode) {
+        case 'perfection':
+          session = await createPerfectionGame(payload);
+          break;
+        case 'creative':
+          session = await createCreativeGame(payload);
+          break;
+        case 'glory':
+          session = await createGloryGame(payload);
+          break;
+        case 'might':
+          session = await createMightGame(payload);
+          break;
+        case 'domination':
+          // Domination n'est pas encore implémenté côté backend
+          throw new Error('Mode Domination non encore implémenté côté backend');
+        default:
+          throw new Error(`Mode non supporté: ${config.mode}`);
+      }
+
       setLiveSession(session);
-       persistLastLiveGameId(session.gameId);
+      persistLastLiveGameId(session.gameId);
       setLiveSelectedUnitId(null);
       setLiveRuntimeError(null);
       setResumeError(null);
@@ -332,7 +355,7 @@ function App() {
     const startProps =
       selectedMode === 'perfection'
         ? {
-            onStartGame: startPerfectionGame,
+            onStartGame: startLiveGame,
             isStarting: isStartingLiveGame,
             startError: liveStartError,
           }
