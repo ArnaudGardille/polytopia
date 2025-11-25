@@ -28,6 +28,7 @@ export interface GameStateView {
   player_score?: number[];
   score_breakdown?: Record<string, number[]>;
   player_techs?: number[][];
+  visibility_mask?: number[][];
   current_player: number;
   turn: number;
   done: boolean;
@@ -81,6 +82,14 @@ export const TerrainType = {
 export const UnitType = {
   NONE: 0,
   WARRIOR: 1,
+  DEFENDER: 2,
+  ARCHER: 3,
+  RIDER: 4,
+  RAFT: 5,
+  KNIGHT: 6,
+  SWORDSMAN: 7,
+  CATAPULT: 8,
+  GIANT: 9,
 } as const;
 
 export const ResourceType = {
@@ -93,8 +102,25 @@ export const ResourceType = {
 export const TechType = {
   NONE: 0,
   CLIMBING: 1,
-  SAILING: 2,
-  MINING: 3,
+  FISHING: 2,
+  HUNTING: 3,
+  ORGANIZATION: 4,
+  RIDING: 5,
+  ARCHERY: 6,
+  RAMMING: 7,
+  FARMING: 8,
+  FORESTRY: 9,
+  FREE_SPIRIT: 10,
+  MEDITATION: 11,
+  MINING: 12,
+  ROADS: 13,
+  SAILING: 14,
+  STRATEGY: 15,
+  AQUATISM: 16,
+  PHILOSOPHY: 17,
+  SMITHERY: 18,
+  CHIVALRY: 19,
+  MATHEMATICS: 20,
 } as const;
 
 // Types pour la navigation et la configuration de jeu

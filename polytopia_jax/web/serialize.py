@@ -88,9 +88,16 @@ def state_to_dict(state: GameState) -> dict:
         "population": np.array(state.score_population, copy=True).tolist(),
         "military": np.array(state.score_military, copy=True).tolist(),
         "economy": np.array(state.score_resources, copy=True).tolist(),
+        "exploration": np.array(state.score_exploration, copy=True).tolist(),
     }
     game_mode = int(np.asarray(state.game_mode).item())
     max_turns = int(np.asarray(state.max_turns).item())
+    
+    # Vision et exploration
+    tiles_explored_arr = np.array(state.tiles_explored, copy=True)
+    tiles_visible_arr = np.array(state.tiles_visible, copy=True)
+    tiles_explored = tiles_explored_arr.astype(int).tolist()
+    tiles_visible = tiles_visible_arr.astype(int).tolist()
     
     # Métadonnées de configuration
     config = {
@@ -120,6 +127,8 @@ def state_to_dict(state: GameState) -> dict:
         "units_payload_type": units_payload_serialized,
         "game_mode": game_mode,
         "max_turns": max_turns,
+        "tiles_explored": tiles_explored,
+        "tiles_visible": tiles_visible,
         "config": config,
     }
 

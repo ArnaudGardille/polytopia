@@ -223,15 +223,32 @@ function App() {
       const elapsed = Date.now() - startTime;
       console.log(`[Frontend] Requête terminée en ${elapsed}ms`);
       
+      // Log pour déboguer
+      console.log('[Frontend] État reçu:', {
+        units: updated.state.units.length,
+        currentPlayer: updated.state.current_player,
+        units: updated.state.units.map(u => ({ id: u.id, pos: u.pos, owner: u.owner }))
+      });
+      
       setLiveSession(updated);
       setLiveRuntimeError(null);
-      // Vérifier que l'unité sélectionnée existe toujours
+      // Vérifier que l'unité sélectionnée existe toujours et désélectionner si nécessaire
       if (liveSelectedUnitId !== null) {
         const stillExists = updated.state.units.some(
           (unit) => (unit.id ?? -1) === liveSelectedUnitId
         );
         if (!stillExists) {
+          console.log(`[Frontend] Unité ${liveSelectedUnitId} n'existe plus, désélection`);
           setLiveSelectedUnitId(null);
+        } else {
+          // Vérifier si l'unité a bougé ou a agi
+          const unit = updated.state.units.find(
+            (unit) => (unit.id ?? -1) === liveSelectedUnitId
+          );
+          if (unit && unit.has_acted) {
+            console.log(`[Frontend] Unité ${liveSelectedUnitId} a agi, désélection`);
+            setLiveSelectedUnitId(null);
+          }
         }
       }
     } catch (err) {

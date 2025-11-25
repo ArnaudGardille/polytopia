@@ -234,28 +234,37 @@ export function LiveGameView({
   };
 
   const executeActionAtTarget = (target: [number, number], validTargets?: MoveTarget[]) => {
-    if (!selectedUnit || selectedUnitId === null) return;
+    if (!selectedUnit || selectedUnitId === null) {
+      console.warn('[executeActionAtTarget] Pas d\'unité sélectionnée');
+      return;
+    }
     const [targetX, targetY] = target;
-    if (!isWithinBounds(targetX, targetY)) return;
+    if (!isWithinBounds(targetX, targetY)) {
+      console.warn(`[executeActionAtTarget] Cible hors limites: [${targetX}, ${targetY}]`);
+      return;
+    }
     
     // Vérifier que la case cible est dans la liste des cibles valides si fournie
     if (validTargets && !validTargets.some(t => t.x === targetX && t.y === targetY)) {
-      console.warn(`Déplacement invalide : la case [${targetX}, ${targetY}] n'est pas dans la liste des cibles valides`);
+      console.warn(`[executeActionAtTarget] Déplacement invalide : la case [${targetX}, ${targetY}] n'est pas dans la liste des cibles valides`);
       return;
     }
     
     const occupant = getUnitAt(targetX, targetY);
     const unitId = selectedUnit.id ?? selectedUnitId ?? 0;
     if (occupant && occupant.owner === HUMAN_PLAYER_ID) {
+      console.warn(`[executeActionAtTarget] Case occupée par une unité alliée`);
       return;
     }
     if (occupant && occupant.owner !== HUMAN_PLAYER_ID) {
       const actionId = encodeAttack(unitId, target);
+      console.log(`[executeActionAtTarget] Attaque: unitId=${unitId}, target=[${targetX}, ${targetY}], actionId=${actionId}`);
       onSendAction(actionId);
       onSelectUnit(null);
       return;
     }
     if (!isTileTraversable(targetX, targetY)) {
+      console.warn(`[executeActionAtTarget] Case non traversable: [${targetX}, ${targetY}]`);
       return;
     }
     const dx = targetX - selectedUnit.pos[0];
@@ -263,12 +272,14 @@ export function LiveGameView({
     const direction = getDirectionFromOffset(dx, dy);
     if (direction === null) {
       // Déplacement invalide : la case n'est pas adjacente ou la direction n'est pas reconnue
-      console.warn(`Déplacement invalide depuis [${selectedUnit.pos[0]}, ${selectedUnit.pos[1]}] vers [${targetX}, ${targetY}] (dx=${dx}, dy=${dy})`);
+      console.warn(`[executeActionAtTarget] Déplacement invalide depuis [${selectedUnit.pos[0]}, ${selectedUnit.pos[1]}] vers [${targetX}, ${targetY}] (dx=${dx}, dy=${dy})`);
       return;
     }
     const actionId = encodeMove(unitId, direction);
+    console.log(`[executeActionAtTarget] Déplacement: unitId=${unitId}, direction=${direction}, from=[${selectedUnit.pos[0]}, ${selectedUnit.pos[1]}], to=[${targetX}, ${targetY}], actionId=${actionId}`);
     onSendAction(actionId);
-    onSelectUnit(null);
+    // Ne pas désélectionner immédiatement, attendre la réponse du serveur
+    // onSelectUnit(null);
   };
 
   const handleMoveToCell = (target: MoveTarget) => {

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState, type MouseEvent } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback, type MouseEvent, type WheelEvent } from 'react';
 import type { GameStateView, CityView } from '../types';
 import { getTerrainIcon, getPlayerColor, getUnitIcon, getCityIcon } from '../utils/iconMapper';
 import { HARVEST_ZONE_OFFSETS } from '../data/resources';
@@ -60,6 +60,17 @@ export function Board({
   const height = terrain.length;
   const width = terrain[0]?.length || 0;
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
+  
+  // États pour zoom et pan
+  const [zoom, setZoom] = useState(1.0);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [hasPanned, setHasPanned] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
+  
+  const MIN_ZOOM = 0.5;
+  const MAX_ZOOM = 3.0;
 
   // Calculer la taille de cellule responsive pour rendu isométrique
   const hexSize = useMemo(() => {
@@ -117,6 +128,22 @@ export function Board({
     return `${viewMinX} ${viewMinY} ${viewWidth} ${viewHeight}`;
   }, [width, height, tileWidth, tileHeight]);
 
+  // Calculer les valeurs du viewBox pour le rectangle de fond
+  const viewBoxData = useMemo(() => {
+    const paddingX = tileWidth * 0.05;
+    const paddingY = tileHeight * 0.05;
+    const maxX = width > 0 ? (width - 1) * tileWidth / 2 : 0;
+    const minX = height > 0 ? -(height - 1) * tileWidth / 2 : 0;
+    const boardWidth = maxX - minX + tileWidth;
+    const boardHeight = height > 0 && width > 0 ? ((width - 1) + (height - 1)) * tileHeight / 4 + tileHeight : tileHeight;
+    return {
+      x: minX - paddingX,
+      y: -paddingY,
+      width: boardWidth + paddingX * 2,
+      height: boardHeight + paddingY * 2,
+    };
+  }, [width, height, tileWidth, tileHeight]);
+
   const moveTargetsMap = useMemo(() => {
     if (!moveTargets || moveTargets.length === 0) return null;
     const map = new Map<string, MoveTarget>();
@@ -126,14 +153,20 @@ export function Board({
     return map;
   }, [moveTargets]);
 
-  const handleBackgroundClick = () => {
+  const handleBackgroundClick = useCallback(() => {
+    // Ne pas désélectionner si on vient de faire un pan
+    if (hasPanned) {
+      setHasPanned(false);
+      return;
+    }
+    
     if (onDeselectUnit) {
       onDeselectUnit();
     }
     if (onDeselectCity) {
       onDeselectCity();
     }
-  };
+  }, [hasPanned, onDeselectUnit, onDeselectCity]);
 
   const harvestZone = useMemo(() => {
     if (!selectedCityPos) return null;
@@ -149,13 +182,195 @@ export function Board({
     return zone;
   }, [selectedCityPos, width, height]);
 
+  // Conversion des coordonnées client vers coordonnées SVG
+  const clientToSVG = useCallback((clientX: number, clientY: number): [number, number] => {
+    if (!svgRef.current) return [0, 0];
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    const x = ((clientX - rect.left) / rect.width) * viewBox.width + viewBox.x;
+    const y = ((clientY - rect.top) / rect.height) * viewBox.height + viewBox.y;
+    return [x, y];
+  }, []);
+
+  // Handler pour le zoom avec la molette
+  const handleWheel = useCallback((event: WheelEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!svgRef.current) return;
+
+    // Ralentir le zoom : facteur plus petit et basé sur deltaY
+    const zoomSpeed = 0.001;
+    const delta = 1 - event.deltaY * zoomSpeed;
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * delta));
+    
+    if (newZoom === zoom) return;
+
+    // Convertir la position de la souris en coordonnées SVG avant transformation
+    const [mouseX, mouseY] = clientToSVG(event.clientX, event.clientY);
+    
+    // Calculer le nouveau pan pour zoomer vers la position de la souris
+    const zoomFactor = newZoom / zoom;
+    const newPanX = mouseX - (mouseX - pan.x) * zoomFactor;
+    const newPanY = mouseY - (mouseY - pan.y) * zoomFactor;
+    
+    setZoom(newZoom);
+    setPan({ x: newPanX, y: newPanY });
+  }, [zoom, pan, clientToSVG]);
+
+  // Handler pour commencer le pan sur le rectangle de fond ou les éléments de terrain
+  const handleBackgroundMouseDown = useCallback((event: MouseEvent<SVGElement>) => {
+    // Ne pas démarrer le pan si on clique sur un élément interactif
+    const target = event.target as SVGElement;
+    // Vérifier si on clique sur un élément interactif (unités, villes, moveTargets)
+    const isInteractive = 
+      target.closest('.unit-animation') !== null ||
+      target.closest('.city-marker') !== null ||
+      target.closest('g[key*="movetarget"]') !== null ||
+      (target.tagName === 'circle' && target.closest('g[key*="movetarget"]') !== null) ||
+      (target.tagName === 'g' && target.getAttribute('key')?.includes('movetarget')) ||
+      target.parentElement?.getAttribute('key')?.includes('movetarget') === true;
+    
+    if (!isInteractive) {
+      event.stopPropagation();
+      setIsPanning(true);
+      setHasPanned(false);
+      setPanStart({ x: event.clientX, y: event.clientY });
+    } else {
+      // Si c'est un élément interactif, ne pas démarrer le pan
+      event.stopPropagation();
+    }
+  }, []);
+
+  // Handler pour le mouvement pendant le pan
+  const handleMouseMove = useCallback((event: MouseEvent<SVGSVGElement>) => {
+    if (!isPanning) return;
+    
+    const deltaX = event.clientX - panStart.x;
+    const deltaY = event.clientY - panStart.y;
+    
+    // Si on a bougé significativement, marquer qu'on a fait un pan
+    if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
+      setHasPanned(true);
+    }
+    
+    // Convertir le delta en coordonnées SVG
+    if (!svgRef.current) return;
+    const svg = svgRef.current;
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    const svgDeltaX = (deltaX / rect.width) * viewBox.width;
+    const svgDeltaY = (deltaY / rect.height) * viewBox.height;
+    
+    setPan(prev => ({
+      x: prev.x + svgDeltaX,
+      y: prev.y + svgDeltaY,
+    }));
+    setPanStart({ x: event.clientX, y: event.clientY });
+  }, [isPanning, panStart]);
+
+  // Handler pour terminer le pan
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Handler pour quand la souris sort du SVG
+  const handleMouseLeave = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Ajouter les event listeners wheel avec passive: false pour pouvoir utiliser preventDefault
+  useEffect(() => {
+    const svg = svgRef.current;
+    const container = svg?.parentElement;
+    
+    if (!svg || !container) return;
+
+    const handleSvgWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!svg) return;
+
+      // Ralentir le zoom : facteur plus petit et basé sur deltaY
+      const zoomSpeed = 0.001;
+      const delta = 1 - event.deltaY * zoomSpeed;
+      
+      setZoom((currentZoom) => {
+        const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom * delta));
+        
+        if (newZoom === currentZoom) return currentZoom;
+
+        // Convertir la position de la souris en coordonnées SVG avant transformation
+        const rect = svg.getBoundingClientRect();
+        const viewBox = svg.viewBox.baseVal;
+        const mouseX = ((event.clientX - rect.left) / rect.width) * viewBox.width + viewBox.x;
+        const mouseY = ((event.clientY - rect.top) / rect.height) * viewBox.height + viewBox.y;
+        
+        // Calculer le nouveau pan pour zoomer vers la position de la souris
+        setPan((currentPan) => {
+          const zoomFactor = newZoom / currentZoom;
+          const newPanX = mouseX - (mouseX - currentPan.x) * zoomFactor;
+          const newPanY = mouseY - (mouseY - currentPan.y) * zoomFactor;
+          return { x: newPanX, y: newPanY };
+        });
+        
+        return newZoom;
+      });
+    };
+
+    const handleContainerWheel = (event: WheelEvent) => {
+      // Si l'événement vient du SVG, ne rien faire (il sera géré par handleSvgWheel)
+      if (event.target === svg || svg.contains(event.target as Node)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    // Ajouter les listeners avec passive: false
+    svg.addEventListener('wheel', handleSvgWheel, { passive: false });
+    container.addEventListener('wheel', handleContainerWheel, { passive: false });
+
+    return () => {
+      svg.removeEventListener('wheel', handleSvgWheel);
+      container.removeEventListener('wheel', handleContainerWheel);
+    };
+  }, []);
+
   return (
-    <div className="board-container" onClick={handleBackgroundClick}>
+    <div 
+      className="board-container" 
+      onClick={handleBackgroundClick}
+      style={{ 
+        cursor: isPanning ? 'grabbing' : 'grab',
+        userSelect: isPanning ? 'none' : 'auto',
+      }}
+    >
       <svg
+        ref={svgRef}
         className="board-svg"
         viewBox={viewBox}
         xmlns="http://www.w3.org/2000/svg"
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          cursor: isPanning ? 'grabbing' : 'grab',
+        }}
       >
+        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+          {/* Rectangle de fond invisible pour gérer le pan */}
+          <rect
+            x={viewBoxData.x}
+            y={viewBoxData.y}
+            width={viewBoxData.width}
+            height={viewBoxData.height}
+            fill="transparent"
+            onMouseDown={handleBackgroundMouseDown}
+            style={{
+              cursor: isPanning ? 'grabbing' : 'grab',
+            }}
+          />
         {/* Grille de terrain */}
         {terrain.map((row, y) =>
           row.map((terrainType, x) => {
@@ -164,8 +379,42 @@ export function Board({
             const imageX = centerX - tileWidth / 2;
             const imageY = centerY - tileHeight / 2;
             const inHarvestZone = harvestZone?.has(`${x}-${y}`) ?? false;
+            
+            // Vérifier la visibilité de la case
+            const visibilityMask = state.visibility_mask;
+            const isVisible = visibilityMask 
+              ? (visibilityMask[y]?.[x] === 1)
+              : true; // Par défaut, tout visible si pas de masque
+            
             return (
-              <g key={`terrain-${x}-${y}`}>
+              <g 
+                key={`terrain-${x}-${y}`}
+              >
+                {/* Rectangle invisible pour permettre le pan sur cette case */}
+                {/* Ne pas ajouter de rectangle si cette case a un moveTarget (les moveTargets sont rendus après) */}
+                {!moveTargetsMap?.has(`${x}-${y}`) && (
+                  <rect
+                    x={imageX}
+                    y={imageY}
+                    width={tileWidth}
+                    height={tileHeight}
+                    fill="transparent"
+                    onMouseDown={(event) => {
+                      // Ne pas démarrer le pan si on clique sur un élément interactif
+                      const target = event.target as SVGElement;
+                      const isInteractive = 
+                        target.closest('.unit-animation') !== null ||
+                        target.closest('.city-marker') !== null;
+                      
+                      if (!isInteractive) {
+                        setIsPanning(true);
+                        setHasPanned(false);
+                        setPanStart({ x: event.clientX, y: event.clientY });
+                      }
+                    }}
+                    style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+                  />
+                )}
                 {terrainIcon && (
                   <image
                     href={terrainIcon}
@@ -174,13 +423,29 @@ export function Board({
                     width={tileWidth}
                     height={tileHeight}
                     preserveAspectRatio="xMidYMid meet"
-                    opacity="0.9"
+                    opacity={isVisible ? "0.9" : "0.3"}
+                    pointerEvents="none"
                     onError={(e) => {
                       (e.target as SVGImageElement).style.display = 'none';
                     }}
                   />
                 )}
-                {inHarvestZone && (
+                {!isVisible && (
+                  <image
+                    href="/icons/terrain/Clouds.png"
+                    x={imageX}
+                    y={imageY}
+                    width={tileWidth}
+                    height={tileHeight}
+                    preserveAspectRatio="xMidYMid meet"
+                    opacity="0.9"
+                    pointerEvents="none"
+                    onError={(e) => {
+                      (e.target as SVGImageElement).style.display = 'none';
+                    }}
+                  />
+                )}
+                {inHarvestZone && isVisible && (
                   <circle
                     cx={centerX}
                     cy={centerY + spriteCenterCorrectionY}
@@ -191,22 +456,24 @@ export function Board({
                     pointerEvents="none"
                   />
                 )}
-                <text
-                  x={centerX}
-                  y={centerY - tileHeight * 0.35}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="white"
-                  fontSize={Math.max(4, Math.min(tileWidth, tileHeight) * 0.04)}
-                  fontWeight="bold"
-                  stroke="black"
-                  strokeWidth={Math.max(0.15, Math.min(tileWidth, tileHeight) * 0.008)}
-                  paintOrder="stroke"
-                  pointerEvents="none"
-                  style={{ userSelect: 'none' }}
-                >
-                  {`${x},${y}`}
-                </text>
+                {isVisible && (
+                  <text
+                    x={centerX}
+                    y={centerY - tileHeight * 0.35}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="white"
+                    fontSize={Math.max(4, Math.min(tileWidth, tileHeight) * 0.04)}
+                    fontWeight="bold"
+                    stroke="black"
+                    strokeWidth={Math.max(0.15, Math.min(tileWidth, tileHeight) * 0.008)}
+                    paintOrder="stroke"
+                    pointerEvents="none"
+                    style={{ userSelect: 'none' }}
+                  >
+                    {`${x},${y}`}
+                  </text>
+                )}
               </g>
             );
           })
@@ -223,6 +490,10 @@ export function Board({
             return (
               <g
                 key={`movetarget-${moveTarget.x}-${moveTarget.y}`}
+                onMouseDown={(event) => {
+                  // Empêcher le pan de démarrer quand on clique sur un moveTarget
+                  event.stopPropagation();
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   if (onSelectMoveTarget) {
@@ -233,6 +504,18 @@ export function Board({
                   cursor: onSelectMoveTarget ? 'pointer' : undefined,
                 }}
               >
+                {/* Rectangle invisible pour capturer les événements et afficher le curseur pointer */}
+                <rect
+                  x={centerX - Math.min(tileWidth, tileHeight) * 0.4}
+                  y={centerY - Math.min(tileWidth, tileHeight) * 0.4}
+                  width={Math.min(tileWidth, tileHeight) * 0.8}
+                  height={Math.min(tileWidth, tileHeight) * 0.8}
+                  fill="transparent"
+                  pointerEvents="auto"
+                  style={{
+                    cursor: onSelectMoveTarget ? 'pointer' : 'default',
+                  }}
+                />
                 <circle
                   cx={centerX}
                   cy={centerY}
@@ -242,6 +525,7 @@ export function Board({
                       ? 'rgba(239,68,68,0.2)'
                       : 'rgba(59,130,246,0.2)'
                   }
+                  pointerEvents="none"
                 />
                 <circle
                   cx={centerX}
@@ -256,6 +540,7 @@ export function Board({
                     moveTarget.type === 'attack' ? '#ef4444' : '#3b82f6'
                   }
                   strokeWidth={Math.min(tileWidth, tileHeight) * 0.04}
+                  pointerEvents="none"
                 />
                 <circle
                   cx={centerX}
@@ -266,13 +551,22 @@ export function Board({
                       ? 'rgba(239,68,68,0.75)'
                       : 'rgba(59,130,246,0.75)'
                   }
+                  pointerEvents="none"
                 />
               </g>
             );
           })}
 
         {/* Villes avec images */}
-        {cities.map((city, idx) => {
+        {cities
+          .filter((city) => {
+            // Vérification de sécurité : masquer les villes non visibles
+            const visibilityMask = state.visibility_mask;
+            if (!visibilityMask) return true; // Pas de masque = tout visible
+            const [x, y] = city.pos;
+            return visibilityMask[y]?.[x] === 1;
+          })
+          .map((city, idx) => {
           const [x, y] = city.pos;
           const [centerX, centerY] = hexToPixel(x, y, tileWidth);
           const playerColor = getPlayerColor(city.owner);
@@ -380,7 +674,15 @@ export function Board({
         })}
 
         {/* Unités avec images */}
-        {units.map((unit, idx) => {
+        {units
+          .filter((unit) => {
+            // Vérification de sécurité : masquer les unités non visibles
+            const visibilityMask = state.visibility_mask;
+            if (!visibilityMask) return true; // Pas de masque = tout visible
+            const [x, y] = unit.pos;
+            return visibilityMask[y]?.[x] === 1;
+          })
+          .map((unit, idx) => {
           const [x, y] = unit.pos;
           const [centerX, centerY] = hexToPixel(x, y, tileWidth);
           const playerColor = getPlayerColor(unit.owner);
@@ -486,6 +788,7 @@ export function Board({
             </g>
           );
         })}
+        </g>
       </svg>
     </div>
   );

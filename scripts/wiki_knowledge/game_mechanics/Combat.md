@@ -6,13 +6,13 @@
 
 ---
 
-**Combat** occurs when two enemy [units](</wiki/Units> "Units") attack each other.   
+**Combat** occurs when two enemy [units](../general/Units.md) attack each other.   
   
-Each unit has two damage stats: attack, which determines how much damage it deals when it attacks, and defence, which determines how much retaliation damage it deals. (The actual amount of damage dealt is usually much greater than the attack or defence stat; for example, a full-health [Warrior](</wiki/Warrior> "Warrior") can deal 5 or more damage even though its attack and defence stats are both 2.) The defence stat also affects how much damage the defending unit takes; for example, a [Rider](</wiki/Rider> "Rider"), with a defence stat of 1, would take much more damage from the same attack than a [Defender](</wiki/Defender> "Defender"), with a defence stat of 3. Note that the attacker’s defence stat and the defending unit’s attack stat are irrelevant. 
+Each unit has two damage stats: attack, which determines how much damage it deals when it attacks, and defence, which determines how much retaliation damage it deals. (The actual amount of damage dealt is usually much greater than the attack or defence stat; for example, a full-health [Warrior](../units/Warrior.md) can deal 5 or more damage even though its attack and defence stats are both 2.) The defence stat also affects how much damage the defending unit takes; for example, a [Rider](../units/Rider.md), with a defence stat of 1, would take much more damage from the same attack than a [Defender](../units/Defender.md), with a defence stat of 3. Note that the attacker’s defence stat and the defending unit’s attack stat are irrelevant. 
 
 Damaged units are weaker in all regards. They do less offensive and defensive damage, and they receive more damage when attacked. 
 
-If a melee unit (like a [Warrior](</wiki/Warrior> "Warrior")) kills an adjacent enemy unit, it will take the place of the killed unit, (barring movement restrictions imposed by terrain). Ranged units (like an [Archer](</wiki/Archer> "Archer")) will not do so, even when killing at melee range. This movement can move units into a friendly port and transform them. 
+If a melee unit (like a [Warrior](../units/Warrior.md)) kills an adjacent enemy unit, it will take the place of the killed unit, (barring movement restrictions imposed by terrain). Ranged units (like an [Archer](../units/Archer.md)) will not do so, even when killing at melee range. This movement can move units into a friendly port and transform them. 
 
 ## Contents
 
@@ -28,7 +28,7 @@ If a melee unit (like a [Warrior](</wiki/Warrior> "Warrior")) kills an adjacent 
 
 ## Battle Preview[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D1&uselang=en> "Sign in to edit")]
 
-[![Battle Preview Example](images/Battle_Preview_Example.webp)](<https://static.wikia.nocookie.net/supertribes/images/a/a3/Battle_Preview_Example.png/revision/latest?cb=20210610004017>) [](</wiki/File:Battle_Preview_Example.png>)
+[![Battle Preview Example](../images/Battle_Preview_Example.webp)](<https://static.wikia.nocookie.net/supertribes/images/a/a3/Battle_Preview_Example.png/revision/latest?cb=20210610004017>) [](</wiki/File:Battle_Preview_Example.png>)
 
 An example of the battle preview
 
@@ -36,24 +36,24 @@ The battle preview shows the result of an attack. To see how much damage will be
 
 ## Defence Bonus[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D2&uselang=en> "Sign in to edit")]
 
-Certain tiles provide a defence bonus to units on them. Tiles of certain [terrain](</wiki/Terrain> "Terrain") types provide a defence bonus once the corresponding [technology](</wiki/Technology> "Technology") is researched, and [cities](</wiki/Cities> "Cities") without a city wall (not including uncaptured villages) provide a defence bonus to friendly units (invading units besieging a city do not receive any defence bonus). Units with a defence bonus receive less damage and deal more retaliation damage. A single shield around the unit's HP indicates that the unit has a defence bonus. 
+Certain tiles provide a defence bonus to units on them. Tiles of certain [terrain](Terrain.md) types provide a defence bonus once the corresponding [technology](../game_mechanics/technology/Technology.md) is researched, and [cities](../general/City.md) without a city wall (not including uncaptured villages) provide a defence bonus to friendly units (invading units besieging a city do not receive any defence bonus). Units with a defence bonus receive less damage and deal more retaliation damage. A single shield around the unit's HP indicates that the unit has a defence bonus. 
 
 The [city wall](</wiki/City_wall> "City wall") provides a defence bonus much stronger than the standard defence bonus. A double shield around a unit's HP indicates that the unit is standing in a city with a city wall. 
 
-Cities will only provide a defence bonus (wall or no wall) to units with the fortify [skill](</wiki/Unit_Skills> "Unit Skills"). For example, a [Giant](</wiki/Giant> "Giant") will never receive a defence bonus in a city because it does not have the fortify skill, although it may receive a defence bonus on other tiles. 
+Cities will only provide a defence bonus (wall or no wall) to units with the fortify [skill](../general/Unit_Skills.md). For example, a [Giant](../units/Giant.md) will never receive a defence bonus in a city because it does not have the fortify skill, although it may receive a defence bonus on other tiles. 
 
 Icon  | Terrain  | Unlocked By   
 ---|---|---  
-[![Forest defense](images/Forest_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/a/a1/Forest_defense.png/revision/latest?cb=20180607125544>) | Forest  | [Archery](</wiki/Archery> "Archery")  
-[![Mountain defense](images/Mountain_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/0/02/Mountain_defense.png/revision/latest?cb=20180605114023>) | Mountain  | [Climbing](</wiki/Climbing> "Climbing")  
-[![Shallow water defense](data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/7/76/Shallow_water_defense.png/revision/latest?cb=20180613230353>) [![Shallow water defense](images/Shallow_water_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/7/76/Shallow_water_defense.png/revision/latest?cb=20180613230353>) | Shallow water  | [Aquatism](</wiki/Aquatism> "Aquatism")  
-[![Deep water defense](data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/c/c7/Deep_water_defense.png/revision/latest?cb=20180613230403>) [![Deep water defense](images/Deep_water_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/c/c7/Deep_water_defense.png/revision/latest?cb=20180613230403>) | Ocean  | Aquatism   
+[![Forest defense](../images/Forest_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/a/a1/Forest_defense.png/revision/latest?cb=20180607125544>) | Forest  | [Archery](../units/Archery.md)  
+[![Mountain defense](../images/Mountain_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/0/02/Mountain_defense.png/revision/latest?cb=20180605114023>) | Mountain  | [Climbing](../game_mechanics/technology/Climbing.md)  
+[![Shallow water defense](../data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/7/76/Shallow_water_defense.png/revision/latest?cb=20180613230353>) [![Shallow water defense](../images/Shallow_water_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/7/76/Shallow_water_defense.png/revision/latest?cb=20180613230353>) | Shallow water  | [Aquatism](../general/Aquatism.md)  
+[![Deep water defense](../data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/c/c7/Deep_water_defense.png/revision/latest?cb=20180613230403>) [![Deep water defense](../images/Deep_water_defense.webp)](<https://static.wikia.nocookie.net/supertribes/images/c/c7/Deep_water_defense.png/revision/latest?cb=20180613230403>) | Ocean  | Aquatism   
   
 ## Healing[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D3&uselang=en> "Sign in to edit")]
 
 A damaged unit can recover (heal) instead of moving and/or attacking on any given turn. Healing restores up to 4 HP in friendly territory and 2 HP in neutral or enemy territory. (A unit cannot have more than its maximum HP.) 
 
-The [Mind Bender](</wiki/Mind_Bender> "Mind Bender") can heal all adjacent friendly units by 4 HP instead of moving, attacking, and/or healing itself on any given turn (if there is a damaged unit nearby). 
+The [Mind Bender](../units/Mind_Bender.md) can heal all adjacent friendly units by 4 HP instead of moving, attacking, and/or healing itself on any given turn (if there is a damaged unit nearby). 
 
 ## Damage Formula[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D4&uselang=en> "Sign in to edit")]
 
@@ -83,7 +83,7 @@ When _attackResult_ is an odd number, this will cause the received splash damage
 
 ## Vision[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D5&uselang=en> "Sign in to edit")]
 
-No retaliation occurs if the attacker kills the unit being attacked or the unit being attacked cannot see the attacker (the attacker is hidden by [fog](</wiki/Terrain> "Terrain")). 
+No retaliation occurs if the attacker kills the unit being attacked or the unit being attacked cannot see the attacker (the attacker is hidden by [fog](Terrain.md)). 
 
 Mountains provide extra sight (a two tile radius instead of the normal one). 
 
@@ -91,19 +91,19 @@ Units with the scout skill can see two tiles in every direction.
 
 ## Boost[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D6&uselang=en> "Sign in to edit")]
 
-[![Boost](data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/c/cd/Boost.png/revision/latest?cb=20210301203127>) [![Boost](images/Boost.webp)](<https://static.wikia.nocookie.net/supertribes/images/c/cd/Boost.png/revision/latest?cb=20210301203127>) [](</wiki/File:Boost.png>)
+[![Boost](../data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/c/cd/Boost.png/revision/latest?cb=20210301203127>) [![Boost](../images/Boost.webp)](<https://static.wikia.nocookie.net/supertribes/images/c/cd/Boost.png/revision/latest?cb=20210301203127>) [](</wiki/File:Boost.png>)
 
 The Boost icon
 
-The [Shaman](</wiki/Shaman> "Shaman"), a unit unique to the [Cymanti](</wiki/Cymanti> "Cymanti") [tribe](</wiki/Tribe> "Tribe"), can boost friendly units. Boosted units get +0.5 attack and +1 movement. This effect lasts until the boosted unit attacks another unit, is attacked, uses most abilities, examines a ruin, captures a village/city, or is poisoned. 
+The [Shaman](../general/Shaman.md), a unit unique to the [Cymanti](../tribes/Cymanti.md) [tribe](</wiki/Tribe> "Tribe"), can boost friendly units. Boosted units get +0.5 attack and +1 movement. This effect lasts until the boosted unit attacks another unit, is attacked, uses most abilities, examines a ruin, captures a village/city, or is poisoned. 
 
 ## Poison[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D7&uselang=en> "Sign in to edit")]
 
-[![Xin-Xi Warrior - Poisoned](data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/d/da/Xin-Xi_Warrior_-_Poisoned.png/revision/latest?cb=20210305235545>) [![Xin-Xi Warrior - Poisoned](images/Xin-Xi_Warrior_-_Poisoned.webp)](<https://static.wikia.nocookie.net/supertribes/images/d/da/Xin-Xi_Warrior_-_Poisoned.png/revision/latest?cb=20210305235545>) [](</wiki/File:Xin-Xi_Warrior_-_Poisoned.png>)
+[![Xin-Xi Warrior - Poisoned](../data:image/gif;base64,R0lGODlhAQABAIABAAAAAP///yH5BAEAAAEALAAAAAABAAEAQAICTAEAOw%3D%3D)](<https://static.wikia.nocookie.net/supertribes/images/d/da/Xin-Xi_Warrior_-_Poisoned.png/revision/latest?cb=20210305235545>) [![Xin-Xi Warrior - Poisoned](../images/Xin-Xi_Warrior_-_Poisoned.webp)](<https://static.wikia.nocookie.net/supertribes/images/d/da/Xin-Xi_Warrior_-_Poisoned.png/revision/latest?cb=20210305235545>) [](</wiki/File:Xin-Xi_Warrior_-_Poisoned.png>)
 
 A poisoned Xin-xi Warrior
 
-Poison is applied by Cymanti [units](</wiki/Units> "Units") and [buildings](</wiki/Building> "Building"). It reduces defence by 30%, prevents the unit from being healed, prevents the unit from receiving any defence bonus, and causes the unit to drop spores (on land) or [Algae](</wiki/Algae> "Algae") (in water) upon death. Poison can be removed by healing once. This can be through self-healing, a [Mind Bender](</wiki/Mind_Bender> "Mind Bender"), or a [Mycelium](</wiki/Mycelium> "Mycelium"). When healed in this way, the poison is removed but the unit does not get any health back. 
+Poison is applied by Cymanti [units](../general/Units.md) and [buildings](</wiki/Building> "Building"). It reduces defence by 30%, prevents the unit from being healed, prevents the unit from receiving any defence bonus, and causes the unit to drop spores (on land) or [Algae](../general/Algae.md) (in water) upon death. Poison can be removed by healing once. This can be through self-healing, a [Mind Bender](../units/Mind_Bender.md), or a [Mycelium](</wiki/Mycelium> "Mycelium"). When healed in this way, the poison is removed but the unit does not get any health back. 
 
 ## Resources[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D8&uselang=en> "Sign in to edit")]
 
@@ -112,18 +112,18 @@ Poison is applied by Cymanti [units](</wiki/Units> "Units") and [buildings](</wi
 
 ## See also[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FCombat%3Fveaction%3Dedit%26section%3D9&uselang=en> "Sign in to edit")]
 
-  * [Unit skills](</wiki/Unit_Skills> "Unit Skills"), which influence the behavior of units in battle
+  * [Unit skills](../general/Unit_Skills.md), which influence the behavior of units in battle
 
   
 ---  
 Game Mechanics  
-Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](</wiki/Update_History> "Update History")  
-General|  **Combat** , [Easter Eggs](</wiki/Easter_Eggs> "Easter Eggs"), [Game Modes](</wiki/Game_Modes> "Game Modes"), [Map Generation](</wiki/Map_Generation> "Map Generation"), [Movement](</wiki/Movement> "Movement"), [Ruin](</wiki/Ruin> "Ruin"), [Score](</wiki/Score> "Score"), [Star](</wiki/Star> "Star"), [Technology](</wiki/Technology> "Technology"), [Terrain](</wiki/Terrain> "Terrain"), [Tribes](</wiki/Tribes> "Tribes")  
-[Abilities](</wiki/Abilities> "Abilities")|  [Burn Forest](</wiki/Burn_Forest> "Burn Forest"), [Clear Forest](</wiki/Clear_Forest> "Clear Forest"), [Destroy](</wiki/Destroy> "Destroy"), [Grow Forest](</wiki/Grow_Forest> "Grow Forest"), [Starfish Harvesting](</wiki/Starfish_Harvesting> "Starfish Harvesting"), [Whale Hunting](</wiki/Whale_Hunting> "Whale Hunting")  
-[Buildings](</wiki/Buildings> "Buildings")|  [Buildings](</wiki/Buildings> "Buildings"), [Bridge](</wiki/Bridge> "Bridge"), [Embassy](</wiki/Embassy> "Embassy"), [Roads](</wiki/Roads_\(Building\)> "Roads \(Building\)"), [Temples](</wiki/Temples> "Temples")  
-[City](</wiki/City> "City")|  [City](</wiki/City> "City"), [City Connection](</wiki/City_Connection> "City Connection"), [City Upgrades](</wiki/Category:City_Upgrades> "Category:City Upgrades"), [Population](</wiki/Population> "Population")  
-[Diplomacy](</wiki/Category:Diplomacy> "Category:Diplomacy")|  [Diplomacy](</wiki/Diplomacy> "Diplomacy"), [Embassy](</wiki/Embassy> "Embassy"), [Peace Treaty](</wiki/Peace_Treaty> "Peace Treaty"), [Tribe Relations](</wiki/Tribe_Relations> "Tribe Relations")  
-[Units](</wiki/Units> "Units")|  [Units](</wiki/Units> "Units"), [List of Units](</wiki/List_of_Units> "List of Units"), [Unit Skills](</wiki/Unit_Skills> "Unit Skills"), [Super Unit](</wiki/Super_Unit> "Super Unit"), [Disband](</wiki/Disband> "Disband")
+Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](../general/Update_History.md)  
+General|  **Combat** , [Easter Eggs](../general/Easter_Eggs.md), [Game Modes](Game_Modes.md), [Map Generation](Map_Generation.md), [Movement](Movement.md), [Ruin](../general/Ruin.md), [Score](Score.md), [Star](../general/Star.md), [Technology](../game_mechanics/technology/Technology.md), [Terrain](Terrain.md), [Tribes](../general/Tribes.md)  
+[Abilities](../general/Abilities.md)|  [Burn Forest](../game_mechanics/abilities/Burn_Forest.md), [Clear Forest](../game_mechanics/abilities/Clear_Forest.md), [Destroy](../game_mechanics/abilities/Destroy.md), [Grow Forest](../game_mechanics/abilities/Grow_Forest.md), [Starfish Harvesting](../game_mechanics/abilities/Starfish_Harvesting.md), [Whale Hunting](../game_mechanics/technology/Whale_Hunting.md)  
+[Buildings](../game_mechanics/buildings/Buildings.md)|  [Buildings](../game_mechanics/buildings/Buildings.md), [Bridge](../game_mechanics/buildings/Bridge.md), [Embassy](../game_mechanics/buildings/Embassy.md), [Roads](</wiki/Roads_\(Building\)> "Roads \(Building\)"), [Temples](../game_mechanics/buildings/Temples.md)  
+[City](../game_mechanics/city/City.md)|  [City](../game_mechanics/city/City.md), [City Connection](../game_mechanics/city/City_Connection.md), [City Upgrades](</wiki/Category:City_Upgrades> "Category:City Upgrades"), [Population](../game_mechanics/city/Population.md)  
+[Diplomacy](</wiki/Category:Diplomacy> "Category:Diplomacy")|  [Diplomacy](../game_mechanics/diplomacy/Diplomacy.md), [Embassy](../game_mechanics/buildings/Embassy.md), [Peace Treaty](../game_mechanics/diplomacy/Strategy.md), [Tribe Relations](../game_mechanics/diplomacy/Tribe_Relations.md)  
+[Units](../general/Units.md)|  [Units](../general/Units.md), [List of Units](../general/List_of_Units.md), [Unit Skills](../general/Unit_Skills.md), [Super Unit](../general/Super_Unit.md), [Disband](../general/Disband.md)
 
 
 ---

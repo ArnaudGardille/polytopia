@@ -106,13 +106,26 @@ def _save_session(session: LiveGameSession) -> None:
 
 def _load_session(game_id: str) -> Optional[LiveGameSession]:
     """Charge une session depuis le disque."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         game_path = _get_live_game_path(game_id)
         if not game_path.exists():
             return None
         
-        with open(game_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        try:
+            with open(game_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(
+                f"Fichier JSON corrompu pour la partie {game_id}: {e}. "
+                f"Ligne {e.lineno}, colonne {e.colno}. "
+                f"Le fichier sera ignoré."
+            )
+            # Optionnel: déplacer le fichier corrompu dans un dossier backup
+            _backup_corrupted_file(game_path)
+            return None
         
         # Reconstruire l'état
         state = dict_to_state(data["state"])
@@ -190,10 +203,24 @@ def _load_session(game_id: str) -> Optional[LiveGameSession]:
         
         return session
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
         logger.warning(f"Erreur lors du chargement de la partie {game_id}: {e}")
         return None
+
+
+def _backup_corrupted_file(file_path: Path) -> None:
+    """Déplace un fichier corrompu dans un dossier backup."""
+    try:
+        backup_dir = file_path.parent / "corrupted_backup"
+        backup_dir.mkdir(exist_ok=True)
+        backup_path = backup_dir / file_path.name
+        file_path.rename(backup_path)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Fichier corrompu déplacé vers {backup_path}")
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Impossible de sauvegarder le fichier corrompu {file_path}: {e}")
 
 
 def load_all_sessions() -> None:

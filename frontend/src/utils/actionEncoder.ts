@@ -7,6 +7,7 @@ export enum ActionType {
   RESEARCH_TECH = 5,
   END_TURN = 6,
   HARVEST_RESOURCE = 7,
+  RECOVER = 8,
 }
 
 export enum Direction {
@@ -111,6 +112,13 @@ export function encodeHarvestResource(targetPos: [number, number]): number {
 
 export function encodeEndTurn(): number {
   return encodeAction({ actionType: ActionType.END_TURN });
+}
+
+export function encodeRecover(unitId: number): number {
+  return encodeAction({
+    actionType: ActionType.RECOVER,
+    unitId,
+  });
 }
 
 export function getDirectionDelta(direction: Direction): [number, number] {

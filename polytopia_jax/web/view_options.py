@@ -52,16 +52,25 @@ def resolve_view_options(
 
 def apply_view_overrides(state: dict, options: ViewOptions) -> dict:
     """Applique les options d'affichage sur un état sérialisé."""
-    if not options.reveal_map and not options.unlock_all_techs:
-        return state
-
     new_state = dict(state)
 
     if options.unlock_all_techs:
         new_state["player_techs"] = _build_full_tech_matrix(state)
 
     if options.reveal_map:
+        # Révéler toute la carte
         new_state["visibility_mask"] = _build_full_visibility(state)
+    else:
+        # Utiliser la vision du joueur actif
+        current_player = state.get("current_player", 0)
+        tiles_visible = state.get("tiles_visible", [])
+        if tiles_visible and current_player < len(tiles_visible):
+            # Convertir booléens en int (1 = visible, 0 = non visible)
+            visibility_mask = [[int(cell) for cell in row] for row in tiles_visible[current_player]]
+            new_state["visibility_mask"] = visibility_mask
+        else:
+            # Fallback : toute la carte visible si pas de données de vision
+            new_state["visibility_mask"] = _build_full_visibility(state)
 
     return new_state
 

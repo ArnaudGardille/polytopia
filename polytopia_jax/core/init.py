@@ -230,7 +230,10 @@ def _place_capitals(
         
         positions.append(pos)
     
-    # Placer les capitales (niveau 1)
+    # Initialiser l'exploration : toutes cases non explorées au départ
+    tiles_explored = state.tiles_explored.copy()
+    
+    # Placer les capitales (niveau 1) et marquer vision initiale
     for player_id, (x, y) in enumerate(positions):
         if x < config.width and y < config.height:
             city_owner = city_owner.at[y, x].set(player_id)
@@ -240,6 +243,14 @@ def _place_capitals(
             state = state.replace(terrain=state.terrain.at[y, x].set(TerrainType.PLAIN))
             resource_type = resource_type.at[y, x].set(int(ResourceType.NONE))
             resource_available = resource_available.at[y, x].set(False)
+            
+            # Marquer vision initiale autour de la capitale (3x3, rayon 1)
+            for dy in range(-1, 2):
+                for dx in range(-1, 2):
+                    vision_y = y + dy
+                    vision_x = x + dx
+                    if (0 <= vision_y < config.height and 0 <= vision_x < config.width):
+                        tiles_explored = tiles_explored.at[player_id, vision_y, vision_x].set(True)
     
     return state.replace(
         city_owner=city_owner,
@@ -247,6 +258,7 @@ def _place_capitals(
         city_population=city_population,
         resource_type=resource_type,
         resource_available=resource_available,
+        tiles_explored=tiles_explored,
     )
 
 

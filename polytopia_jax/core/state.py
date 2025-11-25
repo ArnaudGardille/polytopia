@@ -34,7 +34,7 @@ class TerrainType:
     NUM_TYPES = 9
 
 
-# Constantes de types d'unités - limité à WARRIOR pour le MVP Phase 0
+# Constantes de types d'unités
 class UnitType(IntEnum):
     """Types d'unités."""
     NONE = 0
@@ -43,7 +43,11 @@ class UnitType(IntEnum):
     ARCHER = 3
     RIDER = 4
     RAFT = 5
-    NUM_TYPES = 6
+    KNIGHT = 6
+    SWORDSMAN = 7
+    CATAPULT = 8
+    GIANT = 9
+    NUM_TYPES = 10
 
 
 # Constantes de propriétaires
@@ -59,10 +63,30 @@ class GameMode(IntEnum):
 class TechType(IntEnum):
     """Technologies disponibles dans l'arbre."""
     NONE = 0
+    # Tier 1
     CLIMBING = 1
-    SAILING = 2
-    MINING = 3
-    NUM_TECHS = 4
+    FISHING = 2
+    HUNTING = 3
+    ORGANIZATION = 4
+    RIDING = 5
+    # Tier 2
+    ARCHERY = 6
+    RAMMING = 7
+    FARMING = 8
+    FORESTRY = 9
+    FREE_SPIRIT = 10
+    MEDITATION = 11
+    MINING = 12
+    ROADS = 13
+    SAILING = 14
+    STRATEGY = 15
+    # Tier 3
+    AQUATISM = 16
+    PHILOSOPHY = 17
+    SMITHERY = 18  # Débloque Swordsman (dépend de MINING)
+    CHIVALRY = 19  # Débloque Knight (dépend de RIDING + FORESTRY)
+    MATHEMATICS = 20  # Débloque Catapult (dépend de ORGANIZATION + FORESTRY)
+    NUM_TECHS = 21
 
 
 class ResourceType(IntEnum):
@@ -88,6 +112,15 @@ class GameState:
     city_level: jnp.ndarray  # [H, W] - niveau de chaque ville (0 si pas de ville)
     city_population: jnp.ndarray  # [H, W] - population stockée pour calculer les niveaux
     city_has_port: jnp.ndarray  # [H, W] - présence d'un port (booléen)
+    city_has_windmill: jnp.ndarray  # [H, W] - présence d'un moulin (booléen)
+    city_has_forge: jnp.ndarray  # [H, W] - présence d'une forge (booléen)
+    city_has_sawmill: jnp.ndarray  # [H, W] - présence d'une scierie (booléen)
+    city_has_market: jnp.ndarray  # [H, W] - présence d'un marché (booléen)
+    city_has_temple: jnp.ndarray  # [H, W] - présence d'un temple (booléen)
+    city_temple_level: jnp.ndarray  # [H, W] - niveau du temple (0 si pas de temple)
+    city_has_monument: jnp.ndarray  # [H, W] - présence d'un monument (booléen)
+    city_has_wall: jnp.ndarray  # [H, W] - présence de murs (booléen)
+    city_has_park: jnp.ndarray  # [H, W] - présence d'un parc (booléen)
     
     # Unités
     units_type: jnp.ndarray  # [N_units_max] - types d'unités
@@ -106,9 +139,14 @@ class GameState:
     score_population: jnp.ndarray  # [num_players] - composante population
     score_military: jnp.ndarray  # [num_players] - composante militaire
     score_resources: jnp.ndarray  # [num_players] - composante ressources
+    score_exploration: jnp.ndarray  # [num_players] - composante exploration
     player_income_bonus: jnp.ndarray  # [num_players] - bonus d'étoiles par tour (difficulté)
     resource_type: jnp.ndarray  # [H, W] - type de ressource présente sur la case
     resource_available: jnp.ndarray  # [H, W] - True si la ressource n'a pas encore été récoltée
+    
+    # Vision et exploration
+    tiles_explored: jnp.ndarray  # [num_players, H, W] - booléen par joueur et case (exploration permanente)
+    tiles_visible: jnp.ndarray  # [num_players, H, W] - booléen vision actuelle par joueur (vision temporaire)
     
     # État du jeu
     current_player: jnp.ndarray  # joueur actif (scalaire)
@@ -139,6 +177,15 @@ class GameState:
             city_level=jnp.zeros((height, width), dtype=jnp.int32),
             city_population=jnp.zeros((height, width), dtype=jnp.int32),
             city_has_port=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_windmill=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_forge=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_sawmill=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_market=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_temple=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_temple_level=jnp.zeros((height, width), dtype=jnp.int32),
+            city_has_monument=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_wall=jnp.zeros((height, width), dtype=jnp.bool_),
+            city_has_park=jnp.zeros((height, width), dtype=jnp.bool_),
             units_type=jnp.zeros(max_units, dtype=jnp.int32),
             units_pos=jnp.zeros((max_units, 2), dtype=jnp.int32),
             units_hp=jnp.zeros(max_units, dtype=jnp.int32),
@@ -153,9 +200,12 @@ class GameState:
             score_population=jnp.zeros(num_players, dtype=jnp.int32),
             score_military=jnp.zeros(num_players, dtype=jnp.int32),
             score_resources=jnp.zeros(num_players, dtype=jnp.int32),
+            score_exploration=jnp.zeros(num_players, dtype=jnp.int32),
             player_income_bonus=jnp.zeros(num_players, dtype=jnp.int32),
             resource_type=jnp.zeros((height, width), dtype=jnp.int32),
             resource_available=jnp.zeros((height, width), dtype=jnp.bool_),
+            tiles_explored=jnp.zeros((num_players, height, width), dtype=jnp.bool_),
+            tiles_visible=jnp.zeros((num_players, height, width), dtype=jnp.bool_),
             current_player=jnp.array(0, dtype=jnp.int32),
             turn=jnp.array(0, dtype=jnp.int32),
             done=jnp.array(False, dtype=jnp.bool_),

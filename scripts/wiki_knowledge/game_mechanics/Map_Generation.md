@@ -6,7 +6,7 @@
 
 ---
 
-Every game occurs on a unique, randomly generated square map. Maps come in six sizes and six water amounts. [Terrain](</wiki/Terrain> "Terrain") is spawned in proportions that vary by [tribe](</wiki/Tribe> "Tribe"). Each tribe has a unique set of spawn rates and unique aesthetics for terrain and resources. During the initial map generation, the land is distributed roughly equally between all tribes in the game.   
+Every game occurs on a unique, randomly generated square map. Maps come in six sizes and six water amounts. [Terrain](Terrain.md) is spawned in proportions that vary by [tribe](</wiki/Tribe> "Tribe"). Each tribe has a unique set of spawn rates and unique aesthetics for terrain and resources. During the initial map generation, the land is distributed roughly equally between all tribes in the game.   
   
 ## Contents
 
@@ -40,7 +40,7 @@ There are six map sizes in Polytopia:
   * Huge: 400 tiles, 20x20
   * Massive: 900 tiles, 30x30
 
-Map size changes based on the [game mode](</wiki/Game_Modes> "Game Modes"). Perfection games use a normal map. In Domination, the map size changes depending on the number of opponents: Games with one opponent are on a tiny map, two opponents on a 196-tile (14x14) map, three opponents on a normal map, and four or more on a large map. 
+Map size changes based on the [game mode](Game_Modes.md). Perfection games use a normal map. In Domination, the map size changes depending on the number of opponents: Games with one opponent are on a tiny map, two opponents on a 196-tile (14x14) map, three opponents on a normal map, and four or more on a large map. 
 
 In multiplayer and creative, map size is set by the host when creating a new game. Tiny maps support a maximum of nine players, while other maps support up to 16. 
 
@@ -48,7 +48,7 @@ In multiplayer and creative, map size is set by the host when creating a new gam
 
 Each map type has a different level of wetness that guides the algorithm in how much water to place. 
 
-  * Drylands: Entirely land. ([Kickoo](</wiki/Kickoo> "Kickoo") and [Aquarion](</wiki/Aquarion> "Aquarion") capitals will include two water tiles with a fish in each.)
+  * Drylands: Entirely land. ([Kickoo](../tribes/Kickoo.md) and [Aquarion](../tribes/Aquarion.md) capitals will include two water tiles with a fish in each.)
   * Lakes: A border of land bridges will always generate on the edges of the map. Every player is guaranteed to spawn with land connections to at least two villages.
   * Continents: Large but discrete landmasses. Most similar to pre-[Moonrise](</wiki/Moonrise> "Moonrise") maps.
   * Pangea: A large landmass in the middle of the map surrounded by ocean on the outskirts.
@@ -68,7 +68,7 @@ Each map type has a different level of wetness that guides the algorithm in how 
 
 The standard spawn rates for land tiles are listed in the table below. "Inner city" refers to tiles that are adjacent to a city or village, while "outer city" refers to those that are not. 
 
-Since [update 2.0.58 (Balance Pass 2)](</wiki/Update_History> "Update History"), terrain will always be generated in accordance with the percentage rates - for example, [Luxidoor](</wiki/Luxidoor> "Luxidoor") will always have 48% of their biome (or as close as possible) as field tiles. 
+Since [update 2.0.58 (Balance Pass 2)](../general/Update_History.md), terrain will always be generated in accordance with the percentage rates - for example, [Luxidoor](</wiki/Luxidoor> "Luxidoor") will always have 48% of their biome (or as close as possible) as field tiles. 
 
 | Inner City  | Outer City   
 ---|---|---  
@@ -97,22 +97,22 @@ Modifiers by tribe are direct multipliers on the base rates. For example, Xin-xi
 
 Note that if forced in a 121 tile map, surrounding tribes can affect the spawn rates in the capital city. (ex. A naturally spawning Bardur crop.) 
 
-  * [Xin-xi](</wiki/Xin-xi> "Xin-xi"): 1.5x mountain, 1.5x metal
-  * [Imperius](</wiki/Imperius> "Imperius"): 0.5x wild animal, 2.0x fruit
-  * [Bardur](</wiki/Bardur> "Bardur"): 0.8x forest, 0x crop
-  * [Oumaji](</wiki/Oumaji> "Oumaji"): 0.2x forest, 0.2x wild animal, 0.5x mountain, 0.5x water[note 1]
-  * [Kickoo](</wiki/Kickoo> "Kickoo"): 0.5x mountain, 1.5x fish, 2.0x water[note 2]
-  * [Hoodrick](</wiki/Hoodrick> "Hoodrick"): 0.5x mountain, 1.5x forest 
+  * [Xin-xi](../tribes/Xin-xi.md): 1.5x mountain, 1.5x metal
+  * [Imperius](../tribes/Imperius.md): 0.5x wild animal, 2.0x fruit
+  * [Bardur](../tribes/Bardur.md): 0.8x forest, 0x crop
+  * [Oumaji](../tribes/Oumaji.md): 0.2x forest, 0.2x wild animal, 0.5x mountain, 0.5x water[note 1]
+  * [Kickoo](../tribes/Kickoo.md): 0.5x mountain, 1.5x fish, 2.0x water[note 2]
+  * [Hoodrick](../tribes/Hoodrick.md): 0.5x mountain, 1.5x forest 
   * [Luxidoor](</wiki/Luxidoor> "Luxidoor"): same as base rate
-  * [Vengir](</wiki/Vengir> "Vengir"): 2.0x metal, 0.1x wild animal, 0.1x fruit, 0.1x fish 
-  * [Zebasi](</wiki/Zebasi> "Zebasi"): 0.5x mountain, 0.5x forest, 0.5x fruit
-  * [Ai-Mo](</wiki/Ai-Mo> "Ai-Mo"): 1.5x mountain, 0.1x crop
+  * [Vengir](../tribes/Vengir.md): 2.0x metal, 0.1x wild animal, 0.1x fruit, 0.1x fish 
+  * [Zebasi](../tribes/Zebasi.md): 0.5x mountain, 0.5x forest, 0.5x fruit
+  * [Ai-Mo](../tribes/Ai-Mo.md): 1.5x mountain, 0.1x crop
   * [Quetzali](</wiki/Quetzali> "Quetzali"): 2.0x fruit, 0.1x crop
-  * [Yădakk](</wiki/Y%C4%83dakk> "Yădakk"): 0.5x mountain, 0.5x forest, 1.5x fruit
-  * [Aquarion](</wiki/Aquarion> "Aquarion"): 0.5x forest, 1.5x water[note 2]
-  * [∑∫ỹriȱŋ](</wiki/%E2%88%91%E2%88%AB%E1%BB%B9ri%C8%B1%C5%8B> "∑∫ỹriȱŋ"): 0.5x mountain, 1.5x crop
-  * [Polaris](</wiki/Polaris> "Polaris"): same as non-polaris opponent(s), else base rate
-  * [Cymanti](</wiki/Cymanti> "Cymanti"): 1.2x mountain, crop rate replaced with spore rate, cannot spawn crop. [![Resource rates by tribe](images/Resource_rates_by_tribe.webp)](<https://static.wikia.nocookie.net/supertribes/images/5/58/Resource_rates_by_tribe.png/revision/latest?cb=20250608214300>) [](</wiki/File:Resource_rates_by_tribe.png>)
+  * [Yădakk](../general/Yădakk.md): 0.5x mountain, 0.5x forest, 1.5x fruit
+  * [Aquarion](../tribes/Aquarion.md): 0.5x forest, 1.5x water[note 2]
+  * [∑∫ỹriȱŋ](../general/∑∫ỹriȱŋ.md): 0.5x mountain, 1.5x crop
+  * [Polaris](../tribes/Polaris.md): same as non-polaris opponent(s), else base rate
+  * [Cymanti](../tribes/Cymanti.md): 1.2x mountain, crop rate replaced with spore rate, cannot spawn crop. [![Resource rates by tribe](../images/Resource_rates_by_tribe.webp)](<https://static.wikia.nocookie.net/supertribes/images/5/58/Resource_rates_by_tribe.png/revision/latest?cb=20250608214300>) [](</wiki/File:Resource_rates_by_tribe.png>)
 
 Resource reates by tribe
 
@@ -121,7 +121,7 @@ Resource reates by tribe
 
 ## Map Generation Process[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FMap_Generation%3Fveaction%3Dedit%26section%3D5&uselang=en> "Sign in to edit")]
 
-[ ![We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps](images/We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps.webp) ](<https://polytopia.fandom.com/wiki/File:We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps>) [](</wiki/File:We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps>)
+[ ![We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps](../images/We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps.webp) ](<https://polytopia.fandom.com/wiki/File:We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps>) [](</wiki/File:We_Analyzed_2,306_Lines_of_Code_to_Discover_THIS_about_Polytopia_Maps>)
 
 We Analyzed 2,306 Lines of Code to Discover THIS about Polytopia Maps
 
@@ -223,11 +223,11 @@ Huge  | 400  | 4
 Massive  | 900  | 9   
   
   
-One exception to these rules is the [Aquarion](</wiki/Aquarion> "Aquarion") tribe’s ability to discover Lost cities from deep water ruins. If aquarion claims a ruin in deep ocean, it will always turn into a level 3 city plus the water around the city will spawn new resources, like fish and aquacrops 
+One exception to these rules is the [Aquarion](../tribes/Aquarion.md) tribe’s ability to discover Lost cities from deep water ruins. If aquarion claims a ruin in deep ocean, it will always turn into a level 3 city plus the water around the city will spawn new resources, like fish and aquacrops 
 
 ### Ruins[[](<https://auth.fandom.com/signin?redirect=https%3A%2F%2Fpolytopia.fandom.com%2Fwiki%2FMap_Generation%3Fveaction%3Dedit%26section%3D15&uselang=en> "Sign in to edit")]
 
-[Ruins](</wiki/Ruin> "Ruin") are placed randomly after villages, resources, and lighthouses. Ruins can spawn on mountains, forests, fields, or deep ocean. They cannot spawn right next to another ruin or a village. The number of ruins is based on the size of the map. On Lakes, a maximum of one third of these ruins are allowed to spawn on water. 
+[Ruins](../general/Ruin.md) are placed randomly after villages, resources, and lighthouses. Ruins can spawn on mountains, forests, fields, or deep ocean. They cannot spawn right next to another ruin or a village. The number of ruins is based on the size of the map. On Lakes, a maximum of one third of these ruins are allowed to spawn on water. 
 
 Number of ruins based on map size  **Map size** | **Tiles** | **Ruins**  
 ---|---|---  
@@ -256,13 +256,13 @@ PolyChampions YouTube
   
 ---  
 Game Mechanics  
-Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](</wiki/Update_History> "Update History")  
-General|  [Combat](</wiki/Combat> "Combat"), [Easter Eggs](</wiki/Easter_Eggs> "Easter Eggs"), [Game Modes](</wiki/Game_Modes> "Game Modes"), **Map Generation** , [Movement](</wiki/Movement> "Movement"), [Ruin](</wiki/Ruin> "Ruin"), [Score](</wiki/Score> "Score"), [Star](</wiki/Star> "Star"), [Technology](</wiki/Technology> "Technology"), [Terrain](</wiki/Terrain> "Terrain"), [Tribes](</wiki/Tribes> "Tribes")  
-[Abilities](</wiki/Abilities> "Abilities")|  [Burn Forest](</wiki/Burn_Forest> "Burn Forest"), [Clear Forest](</wiki/Clear_Forest> "Clear Forest"), [Destroy](</wiki/Destroy> "Destroy"), [Grow Forest](</wiki/Grow_Forest> "Grow Forest"), [Starfish Harvesting](</wiki/Starfish_Harvesting> "Starfish Harvesting"), [Whale Hunting](</wiki/Whale_Hunting> "Whale Hunting")  
-[Buildings](</wiki/Buildings> "Buildings")|  [Buildings](</wiki/Buildings> "Buildings"), [Bridge](</wiki/Bridge> "Bridge"), [Embassy](</wiki/Embassy> "Embassy"), [Roads](</wiki/Roads_\(Building\)> "Roads \(Building\)"), [Temples](</wiki/Temples> "Temples")  
-[City](</wiki/City> "City")|  [City](</wiki/City> "City"), [City Connection](</wiki/City_Connection> "City Connection"), [City Upgrades](</wiki/Category:City_Upgrades> "Category:City Upgrades"), [Population](</wiki/Population> "Population")  
-[Diplomacy](</wiki/Category:Diplomacy> "Category:Diplomacy")|  [Diplomacy](</wiki/Diplomacy> "Diplomacy"), [Embassy](</wiki/Embassy> "Embassy"), [Peace Treaty](</wiki/Peace_Treaty> "Peace Treaty"), [Tribe Relations](</wiki/Tribe_Relations> "Tribe Relations")  
-[Units](</wiki/Units> "Units")|  [Units](</wiki/Units> "Units"), [List of Units](</wiki/List_of_Units> "List of Units"), [Unit Skills](</wiki/Unit_Skills> "Unit Skills"), [Super Unit](</wiki/Super_Unit> "Super Unit"), [Disband](</wiki/Disband> "Disband")
+Game|  [The Battle of Polytopia: Moonrise](</wiki/The_Battle_of_Polytopia:_Moonrise> "The Battle of Polytopia: Moonrise"), [Update History](../general/Update_History.md)  
+General|  [Combat](Combat.md), [Easter Eggs](../general/Easter_Eggs.md), [Game Modes](Game_Modes.md), **Map Generation** , [Movement](Movement.md), [Ruin](../general/Ruin.md), [Score](Score.md), [Star](../general/Star.md), [Technology](../game_mechanics/technology/Technology.md), [Terrain](Terrain.md), [Tribes](../general/Tribes.md)  
+[Abilities](../general/Abilities.md)|  [Burn Forest](../game_mechanics/abilities/Burn_Forest.md), [Clear Forest](../game_mechanics/abilities/Clear_Forest.md), [Destroy](../game_mechanics/abilities/Destroy.md), [Grow Forest](../game_mechanics/abilities/Grow_Forest.md), [Starfish Harvesting](../game_mechanics/abilities/Starfish_Harvesting.md), [Whale Hunting](../game_mechanics/technology/Whale_Hunting.md)  
+[Buildings](../game_mechanics/buildings/Buildings.md)|  [Buildings](../game_mechanics/buildings/Buildings.md), [Bridge](../game_mechanics/buildings/Bridge.md), [Embassy](../game_mechanics/buildings/Embassy.md), [Roads](</wiki/Roads_\(Building\)> "Roads \(Building\)"), [Temples](../game_mechanics/buildings/Temples.md)  
+[City](../game_mechanics/city/City.md)|  [City](../game_mechanics/city/City.md), [City Connection](../game_mechanics/city/City_Connection.md), [City Upgrades](</wiki/Category:City_Upgrades> "Category:City Upgrades"), [Population](../game_mechanics/city/Population.md)  
+[Diplomacy](</wiki/Category:Diplomacy> "Category:Diplomacy")|  [Diplomacy](../game_mechanics/diplomacy/Diplomacy.md), [Embassy](../game_mechanics/buildings/Embassy.md), [Peace Treaty](../game_mechanics/diplomacy/Strategy.md), [Tribe Relations](../game_mechanics/diplomacy/Tribe_Relations.md)  
+[Units](../general/Units.md)|  [Units](../general/Units.md), [List of Units](../general/List_of_Units.md), [Unit Skills](../general/Unit_Skills.md), [Super Unit](../general/Super_Unit.md), [Disband](../general/Disband.md)
 
 
 ---

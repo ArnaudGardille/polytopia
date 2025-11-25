@@ -74,6 +74,24 @@ class GameStateView(BaseModel):
         
         terrain = state["terrain"]
         
+        # Récupérer le masque de visibilité
+        visibility_mask = state.get("visibility_mask")
+        current_player = state.get("current_player", 0)
+        
+        # Masquer le terrain selon la visibilité
+        if visibility_mask:
+            height = len(terrain)
+            width = len(terrain[0]) if height > 0 else 0
+            masked_terrain = [
+                [
+                    terrain[y][x] if (y < len(visibility_mask) and x < len(visibility_mask[y]) and visibility_mask[y][x] == 1)
+                    else 0  # Terrain masqué = 0 (PLAIN)
+                    for x in range(width)
+                ]
+                for y in range(height)
+            ]
+            terrain = masked_terrain
+        
         # Extraire les villes depuis city_owner et city_level (optimisé)
         cities = []
         city_owner = state.get("city_owner", [])
@@ -81,19 +99,32 @@ class GameStateView(BaseModel):
         city_population = state.get("city_population", [])
         city_ports = state.get("city_has_port", [])
         
+        # Récupérer le masque de visibilité
+        visibility_mask = state.get("visibility_mask")
+        current_player = state.get("current_player", 0)
+        
+        # Si pas de masque, considérer toute la carte visible
+        is_visible = None
+        if visibility_mask:
+            is_visible = lambda y, x: visibility_mask[y][x] == 1 if y < len(visibility_mask) and x < len(visibility_mask[y]) else False
+        else:
+            is_visible = lambda y, x: True
+        
         if city_owner and city_level:
             height = len(city_owner)
             width = len(city_owner[0]) if height > 0 else 0
             
             # Utiliser une liste en compréhension pour être plus rapide
+            # Filtrer selon la visibilité
             cities = [
                 CityView(owner=city_owner[y][x], level=city_level[y][x], pos=[x, y])
                 for y in range(height)
                 for x in range(width)
-                if city_owner[y][x] != -1 and city_level[y][x] > 0
+                if city_owner[y][x] != -1 and city_level[y][x] > 0 and is_visible(y, x)
             ]
         
         # Extraire les unités (optimisé avec liste en compréhension)
+        # Filtrer selon la visibilité
         raw_units = state.get("units", [])
         units = [
             UnitView(
@@ -105,6 +136,7 @@ class GameStateView(BaseModel):
                 has_acted=unit.get("has_acted", False),
             )
             for idx, unit in enumerate(raw_units)
+            if is_visible(unit["pos"][1], unit["pos"][0])  # pos = [x, y], donc y=pos[1], x=pos[0]
         ]
         
         player_stars = state.get("player_stars", [])

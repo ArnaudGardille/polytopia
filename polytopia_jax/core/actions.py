@@ -15,7 +15,8 @@ class ActionType(IntEnum):
     RESEARCH_TECH = 5
     END_TURN = 6
     HARVEST_RESOURCE = 7
-    NUM_ACTIONS = 8
+    RECOVER = 8
+    NUM_ACTIONS = 9
 
 
 # Directions pour les mouvements (8 directions)

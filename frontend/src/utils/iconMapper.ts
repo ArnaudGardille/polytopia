@@ -1,7 +1,39 @@
 import { TerrainType, UnitType } from '../types';
 
 /**
- * Obtient la lettre de la tribu à partir du playerId
+ * Obtient le nom de la tribu à partir du playerId
+ * Mapping des playerId vers les noms de tribus Polytopia
+ */
+function getTribeName(playerId?: number): string {
+  if (playerId === undefined || playerId === null || playerId < 0) {
+    return 'Imperius'; // Par défaut
+  }
+  
+  // Mapping des playerId vers les tribus
+  const tribeMapping: Record<number, string> = {
+    0: 'Imperius',
+    1: 'Xin-xi',
+    2: 'Bardur',
+    3: 'Oumaji',
+    4: 'Kickoo',
+    5: 'Hoodrick',
+    6: 'Luxidoor',
+    7: 'Vengir',
+    8: 'Zebasi',
+    9: 'Quetzali',
+    10: 'Yadakk',
+    11: 'Ai-mo',
+    12: 'Aquarion',
+    13: 'Polaris',
+    14: 'Elyrion',
+    15: 'Cymanti',
+  };
+  
+  return tribeMapping[playerId] || 'Imperius';
+}
+
+/**
+ * Obtient la lettre de la tribu à partir du playerId (pour compatibilité avec les unités)
  * Pour l'instant : 0 = Imperius (I), 1 = Xin-xi (X), défaut = Imperius (I)
  */
 function getTribeLetter(playerId?: number): string {
@@ -60,32 +92,28 @@ export function getUnitIcon(unitType: number, playerId?: number): string | null 
 /**
  * Mapping des villes vers les chemins d'icônes Polytopia
  * Utilise les icônes spécifiques à chaque tribu et niveau
+ * Pour les villes colonisées, affiche le château de la tribu
  */
 export function getCityIcon(level: number, playerId?: number): string | null {
-  const tribe = getTribeLetter(playerId);
-  
-  // Pour les villes de niveau élevé (châteaux)
-  if (level >= 3) {
-    if (tribe === 'I') {
-      return '/icons/cities/castles/Imperius_city_castle.png';
-    } else if (tribe === 'X') {
-      return '/icons/cities/castles/Xin-xi_city_castle.png';
-    }
+  // Si pas de propriétaire ou propriétaire invalide (village neutre)
+  if (playerId === undefined || playerId === null || playerId < 0) {
+    return '/icons/cities/Village.png';
   }
   
-  // Pour les villes de niveau basique
-  if (tribe === 'I') {
-    return '/icons/cities/IMPERIUS_CITY.png';
-  }
-  
-  // Par défaut, utiliser le village générique
-  return '/icons/terrain/Village.png';
+  // Pour les villes colonisées, utiliser le château de la tribu
+  const tribeName = getTribeName(playerId);
+  return `/icons/cities/castles/${tribeName}_city_castle.png`;
 }
 
 /**
  * Couleurs pour les joueurs (inspirées de Polytopia)
  */
 export function getPlayerColor(playerId: number): string {
+  // Si playerId invalide (village neutre), utiliser une couleur neutre
+  if (playerId < 0) {
+    return '#9CA3AF'; // Gris neutre
+  }
+  
   const colors = [
     '#3B82F6', // Bleu (joueur 0)
     '#EF4444', // Rouge (joueur 1)

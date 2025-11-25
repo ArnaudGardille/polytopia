@@ -35,15 +35,27 @@ MAX_UNIT_TYPES = 16  # Taille maximale pour les types d'unités
 def _pad_unit_array(values):
     return jnp.array(values + [0] * (MAX_UNIT_TYPES - len(values)), dtype=jnp.int32)
 
-UNIT_HP_MAX = _pad_unit_array([0, 10, 15, 8, 10, 8])
-UNIT_ATTACK = _pad_unit_array([0, 2, 1, 2, 3, 2])
-UNIT_DEFENSE = _pad_unit_array([0, 2, 3, 1, 1, 1])
-UNIT_MOVEMENT = _pad_unit_array([0, 1, 1, 1, 2, 2])
-UNIT_COST = _pad_unit_array([0, 2, 3, 3, 4, 0])
-UNIT_ATTACK_RANGE = _pad_unit_array([0, 1, 1, 2, 1, 1])
-UNIT_IS_NAVAL = _pad_unit_array([0, 0, 0, 0, 0, 1]).astype(jnp.bool_)
-UNIT_CAN_ENTER_SHALLOW = _pad_unit_array([0, 0, 0, 0, 0, 1]).astype(jnp.bool_)
-UNIT_CAN_ENTER_DEEP = _pad_unit_array([0, 0, 0, 0, 0, 0]).astype(jnp.bool_)
+UNIT_HP_MAX = _pad_unit_array([0, 10, 15, 8, 10, 8, 15, 15, 8, 40])  # NONE, WARRIOR, DEFENDER, ARCHER, RIDER, RAFT, KNIGHT, SWORDSMAN, CATAPULT, GIANT
+UNIT_ATTACK = _pad_unit_array([0, 2, 1, 2, 3, 2, 4, 3, 4, 5])
+UNIT_DEFENSE = _pad_unit_array([0, 2, 3, 1, 1, 1, 1, 2, 1, 3])
+UNIT_MOVEMENT = _pad_unit_array([0, 1, 1, 1, 2, 2, 3, 1, 1, 1])
+UNIT_COST = _pad_unit_array([0, 2, 3, 3, 4, 0, 6, 5, 6, 20])  # Coûts approximatifs selon Polytopia
+UNIT_ATTACK_RANGE = _pad_unit_array([0, 1, 1, 2, 1, 1, 1, 1, 3, 1])  # Catapult portée 3
+UNIT_REQUIRED_TECH = _pad_unit_array([
+    int(TechType.NONE),  # NONE
+    int(TechType.NONE),  # WARRIOR (pas de tech requise)
+    int(TechType.STRATEGY),  # DEFENDER (nécessite Strategy)
+    int(TechType.ARCHERY),  # ARCHER
+    int(TechType.RIDING),  # RIDER
+    int(TechType.SAILING),  # RAFT
+    int(TechType.CHIVALRY),  # KNIGHT (nécessite Chivalry)
+    int(TechType.SMITHERY),  # SWORDSMAN (nécessite Smithery)
+    int(TechType.MATHEMATICS),  # CATAPULT (nécessite Mathematics)
+    int(TechType.NONE),  # GIANT (obtenu via amélioration ville niveau 5+, pas encore implémenté)
+])
+UNIT_IS_NAVAL = _pad_unit_array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0]).astype(jnp.bool_)
+UNIT_CAN_ENTER_SHALLOW = _pad_unit_array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0]).astype(jnp.bool_)
+UNIT_CAN_ENTER_DEEP = _pad_unit_array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).astype(jnp.bool_)
 
 
 class BuildingType(IntEnum):
@@ -53,20 +65,44 @@ class BuildingType(IntEnum):
     MINE = 2
     HUT = 3
     PORT = 4
-    NUM_TYPES = 5
+    WINDMILL = 5
+    FORGE = 6
+    SAWMILL = 7
+    MARKET = 8
+    TEMPLE = 9
+    MONUMENT = 10
+    CITY_WALL = 11
+    PARK = 12
+    NUM_TYPES = 13
 
 
-MAX_BUILDING_TYPES = 8
+MAX_BUILDING_TYPES = 16  # Augmenté pour accommoder tous les nouveaux bâtiments
 BUILDING_COST = jnp.array(
-    [0, 3, 4, 2, 5] + [0] * (MAX_BUILDING_TYPES - 5),
+    [0, 3, 4, 2, 5, 6, 7, 5, 8, 10, 20, 5, 15] + [0] * (MAX_BUILDING_TYPES - 13),
     dtype=jnp.int32,
 )
+# POP_GAIN pour windmill/forge/sawmill sera calculé dynamiquement selon adjacents
+# Pour les autres, 0 car ils donnent d'autres bonus
 BUILDING_POP_GAIN = jnp.array(
-    [0, 1, 2, 1, 0] + [0] * (MAX_BUILDING_TYPES - 5),
+    [0, 1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0] + [0] * (MAX_BUILDING_TYPES - 13),
     dtype=jnp.int32,
 )
 BUILDING_REQUIRED_TECH = jnp.array(
-    [int(TechType.NONE), int(TechType.NONE), int(TechType.MINING), int(TechType.NONE), int(TechType.SAILING)] + [0] * (MAX_BUILDING_TYPES - 5),
+    [
+        int(TechType.NONE),  # NONE
+        int(TechType.NONE),  # FARM
+        int(TechType.MINING),  # MINE
+        int(TechType.NONE),  # HUT
+        int(TechType.SAILING),  # PORT
+        int(TechType.NONE),  # WINDMILL (tier 2, nécessiterait Construction mais pas encore implémenté)
+        int(TechType.MINING),  # FORGE (nécessite Mining)
+        int(TechType.NONE),  # SAWMILL (tier 2, nécessiterait Forestry mais pas encore implémenté)
+        int(TechType.NONE),  # MARKET (tier 2, nécessiterait Trade mais pas encore implémenté)
+        int(TechType.NONE),  # TEMPLE (tier 3, nécessiterait Spiritualism mais pas encore implémenté)
+        int(TechType.NONE),  # MONUMENT (tier 3, nécessiterait Mathematics mais pas encore implémenté)
+        int(TechType.NONE),  # CITY_WALL (amélioration ville niveau 3)
+        int(TechType.NONE),  # PARK (amélioration ville niveau 5)
+    ] + [0] * (MAX_BUILDING_TYPES - 13),
     dtype=jnp.int32,
 )
 
@@ -96,19 +132,89 @@ RESOURCE_BASE_TERRAIN = jnp.array(
 
 NUM_TECHS = int(TechType.NUM_TECHS)
 
-TECH_COST = jnp.array(
-    [0, 3, 4, 3] + [0] * (NUM_TECHS - 4),
-    dtype=jnp.int32,
-)
+# Coûts de base selon tier (sans villes ni Philosophy)
+# Formule: base_cost = tier * num_cities + 4
+# Pour 0 villes: T1=4, T2=4, T3=4
+# Pour 1 ville: T1=5, T2=6, T3=7
+# On stocke le tier pour calculer dynamiquement
+TECH_TIER = jnp.array([
+    0,  # NONE
+    1,  # CLIMBING (T1)
+    1,  # FISHING (T1)
+    1,  # HUNTING (T1)
+    1,  # ORGANIZATION (T1)
+    1,  # RIDING (T1)
+    2,  # ARCHERY (T2)
+    2,  # RAMMING (T2)
+    2,  # FARMING (T2)
+    2,  # FORESTRY (T2)
+    2,  # FREE_SPIRIT (T2)
+    2,  # MEDITATION (T2)
+    2,  # MINING (T2)
+    2,  # ROADS (T2)
+    2,  # SAILING (T2)
+    2,  # STRATEGY (T2)
+    3,  # AQUATISM (T3)
+    3,  # PHILOSOPHY (T3)
+], dtype=jnp.int32)
 
-tech_deps_rows = [
-    [False] * NUM_TECHS,
-    [False] * NUM_TECHS,  # CLIMBING
-    [False, True, False, False] + [False] * (NUM_TECHS - 4),  # SAILING requires CLIMBING
-    [False] * NUM_TECHS,  # MINING
-]
-if NUM_TECHS > 4:
-    tech_deps_rows.extend([[False] * NUM_TECHS for _ in range(NUM_TECHS - 4)])
+# Coûts de base pour compatibilité (coût pour 0 villes, base = 4)
+# Pour calcul dynamique avec villes, utiliser TECH_TIER
+# Coûts approximatifs selon tiers : T1=3-5, T2=4-6, T3=6-8
+TECH_COST = jnp.array([
+    0,  # NONE
+    3,  # CLIMBING (T1)
+    3,  # FISHING (T1)
+    3,  # HUNTING (T1)
+    3,  # ORGANIZATION (T1)
+    3,  # RIDING (T1)
+    5,  # ARCHERY (T2)
+    4,  # RAMMING (T2)
+    4,  # FARMING (T2)
+    4,  # FORESTRY (T2)
+    4,  # FREE_SPIRIT (T2)
+    4,  # MEDITATION (T2)
+    3,  # MINING (T2)
+    4,  # ROADS (T2)
+    4,  # SAILING (T2)
+    4,  # STRATEGY (T2)
+    6,  # AQUATISM (T3)
+    6,  # PHILOSOPHY (T3)
+    5,  # SMITHERY (T3)
+    6,  # CHIVALRY (T3)
+    7,  # MATHEMATICS (T3)
+], dtype=jnp.int32)
+
+# Construire les dépendances selon l'arbre de Polytopia
+tech_deps_rows = []
+for i in range(NUM_TECHS):
+    deps = [False] * NUM_TECHS
+    tech = TechType(i)
+    
+    if tech == TechType.SAILING:
+        deps[TechType.CLIMBING] = True
+    elif tech == TechType.ARCHERY:
+        deps[TechType.HUNTING] = True
+    elif tech == TechType.RAMMING:
+        deps[TechType.FISHING] = True
+    elif tech == TechType.FARMING:
+        deps[TechType.ORGANIZATION] = True
+    elif tech == TechType.FORESTRY:
+        deps[TechType.HUNTING] = True
+    elif tech == TechType.FREE_SPIRIT:
+        deps[TechType.RIDING] = True
+    elif tech == TechType.MEDITATION:
+        deps[TechType.CLIMBING] = True
+    elif tech == TechType.ROADS:
+        deps[TechType.RIDING] = True
+    elif tech == TechType.STRATEGY:
+        deps[TechType.ORGANIZATION] = True
+    elif tech == TechType.AQUATISM:
+        deps[TechType.RAMMING] = True
+    elif tech == TechType.PHILOSOPHY:
+        deps[TechType.MEDITATION] = True
+    
+    tech_deps_rows.append(deps)
 
 TECH_DEPENDENCIES = jnp.array(tech_deps_rows, dtype=jnp.bool_)
 
@@ -167,6 +273,7 @@ def _apply_action(state: GameState, decoded: dict) -> GameState:
             lambda s: _apply_research_tech(s, decoded),  # RESEARCH_TECH
             lambda s: _apply_end_turn(s),  # END_TURN
             lambda s: _apply_harvest_resource(s, decoded),  # HARVEST_RESOURCE
+            lambda s: _apply_recover(s, decoded),  # RECOVER
         ],
         state
     )
@@ -270,7 +377,44 @@ def _perform_move(state: GameState, unit_id: jnp.ndarray, direction: jnp.ndarray
     )
     
     can_enter = jnp.where(is_land_tile, land_allowed, naval_allowed)
-    can_move = is_in_bounds & ~pos_occupied & can_enter
+    
+    # Vérifier si la case destination est explorée ou adjacente à une case explorée
+    unit_owner = state.units_owner[unit_id]
+    is_explored = jnp.where(
+        is_in_bounds,
+        state.tiles_explored[unit_owner, new_y, new_x],
+        False
+    )
+    
+    # Vérifier si adjacente à une case explorée (8 directions)
+    def check_adjacent_explored():
+        # Vérifier les 8 cases adjacentes
+        adjacent_deltas = jnp.array([
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1],           [0, 1],
+            [1, -1],  [1, 0],  [1, 1]
+        ], dtype=jnp.int32)
+        
+        def check_delta(delta_idx, has_adjacent):
+            dy, dx = adjacent_deltas[delta_idx]
+            adj_y = new_y + dy
+            adj_x = new_x + dx
+            
+            in_bounds_adj = (adj_y >= 0) & (adj_y < state.height) & (adj_x >= 0) & (adj_x < state.width)
+            is_explored_adj = jnp.where(
+                in_bounds_adj,
+                state.tiles_explored[unit_owner, adj_y, adj_x],
+                False
+            )
+            return has_adjacent | is_explored_adj
+        
+        has_adjacent = jax.lax.fori_loop(0, 8, check_delta, False)
+        return has_adjacent
+    
+    is_adjacent_to_explored = jnp.where(is_in_bounds, check_adjacent_explored(), False)
+    can_see_destination = is_explored | is_adjacent_to_explored
+    
+    can_move = is_in_bounds & ~pos_occupied & can_enter & can_see_destination
     
     convert_to_raft = (~is_naval) & is_shallow_water & origin_port & has_sailing
     disembark_to_land = is_naval & is_land_tile
@@ -296,6 +440,15 @@ def _perform_move(state: GameState, unit_id: jnp.ndarray, direction: jnp.ndarray
             state
         )
         state = _check_city_capture(state, unit_id, new_x, new_y)
+        
+        # Mettre à jour l'exploration : marquer les cases vues comme explorées
+        unit_owner = state.units_owner[unit_id]
+        unit_vision = _compute_unit_vision(state, unit_id, new_pos)
+        new_tiles_explored = state.tiles_explored.at[unit_owner].set(
+            state.tiles_explored[unit_owner] | unit_vision
+        )
+        state = state.replace(tiles_explored=new_tiles_explored)
+        
         return state
     
     return jax.lax.cond(
@@ -330,9 +483,6 @@ def _apply_build(state: GameState, decoded: dict) -> GameState:
         is_city = state.city_level[target_y, target_x] > 0
         is_owner = state.city_owner[target_y, target_x] == state.current_player
         cost = BUILDING_COST[building_type]
-        pop_gain = BUILDING_POP_GAIN[building_type]
-        is_port = building_type == BuildingType.PORT
-        has_effect = jnp.where(is_port, True, pop_gain > 0)
         has_stars = state.player_stars[state.current_player] >= cost
         required_tech = BUILDING_REQUIRED_TECH[building_type]
         has_required = jnp.where(
@@ -340,7 +490,30 @@ def _apply_build(state: GameState, decoded: dict) -> GameState:
             True,
             state.player_techs[state.current_player, required_tech],
         )
-        can_build = is_city & is_owner & has_effect & has_stars & has_required
+        # Vérifier que le bâtiment n'existe pas déjà (pour les bâtiments uniques)
+        is_windmill = building_type == BuildingType.WINDMILL
+        is_forge = building_type == BuildingType.FORGE
+        is_sawmill = building_type == BuildingType.SAWMILL
+        is_market = building_type == BuildingType.MARKET
+        is_temple = building_type == BuildingType.TEMPLE
+        is_monument = building_type == BuildingType.MONUMENT
+        is_wall = building_type == BuildingType.CITY_WALL
+        is_park = building_type == BuildingType.PARK
+        
+        already_has_windmill = jnp.where(is_windmill, state.city_has_windmill[target_y, target_x], False)
+        already_has_forge = jnp.where(is_forge, state.city_has_forge[target_y, target_x], False)
+        already_has_sawmill = jnp.where(is_sawmill, state.city_has_sawmill[target_y, target_x], False)
+        already_has_market = jnp.where(is_market, state.city_has_market[target_y, target_x], False)
+        already_has_temple = jnp.where(is_temple, state.city_has_temple[target_y, target_x], False)
+        already_has_monument = jnp.where(is_monument, state.city_has_monument[target_y, target_x], False)
+        already_has_wall = jnp.where(is_wall, state.city_has_wall[target_y, target_x], False)
+        already_has_park = jnp.where(is_park, state.city_has_park[target_y, target_x], False)
+        
+        already_built = (already_has_windmill | already_has_forge | already_has_sawmill | 
+                         already_has_market | already_has_temple | already_has_monument | 
+                         already_has_wall | already_has_park)
+        
+        can_build = is_city & is_owner & ~already_built & has_stars & has_required
         
         return jax.lax.cond(
             can_build,
@@ -357,33 +530,207 @@ def _apply_build(state: GameState, decoded: dict) -> GameState:
     )
 
 
+def _count_adjacent_farms(state: GameState, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compte les fermes adjacentes (villes avec FARM construite)."""
+    # Pour simplifier, on compte les villes adjacentes (chaque ville a au moins une ferme potentielle)
+    count = jnp.array(0, dtype=jnp.int32)
+    
+    def check_delta(i, acc):
+        dx = HARVEST_NEIGHBOR_DELTAS[i, 0]
+        dy = HARVEST_NEIGHBOR_DELTAS[i, 1]
+        nx = x + dx
+        ny = y + dy
+        
+        # Utiliser la forme du terrain pour vérifier les limites
+        h, w = state.terrain.shape[0], state.terrain.shape[1]
+        in_bounds = (
+            (nx >= 0) & (nx < w) &
+            (ny >= 0) & (ny < h)
+        )
+        
+        # Une ville adjacente compte comme ayant une ferme (simplification MVP)
+        has_city = jnp.where(in_bounds, state.city_level[ny, nx] > 0, False)
+        
+        return jnp.where(has_city, acc + 1, acc)
+    
+    return jax.lax.fori_loop(0, HARVEST_NEIGHBOR_DELTAS.shape[0], check_delta, count)
+
+
+def _count_adjacent_mines(state: GameState, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compte les mines adjacentes."""
+    count = jnp.array(0, dtype=jnp.int32)
+    
+    def check_delta(i, acc):
+        dx = HARVEST_NEIGHBOR_DELTAS[i, 0]
+        dy = HARVEST_NEIGHBOR_DELTAS[i, 1]
+        nx = x + dx
+        ny = y + dy
+        
+        # Utiliser la forme du terrain pour vérifier les limites
+        h, w = state.terrain.shape[0], state.terrain.shape[1]
+        in_bounds = (
+            (nx >= 0) & (nx < w) &
+            (ny >= 0) & (ny < h)
+        )
+        
+        # Vérifier si terrain montagne avec mine OU ville avec mine construite
+        is_mountain_mine = jnp.where(
+            in_bounds,
+            state.terrain[ny, nx] == TerrainType.MOUNTAIN_WITH_MINE,
+            False
+        )
+        # Pour simplifier MVP, on compte aussi les villes adjacentes comme ayant potentiellement une mine
+        # (car les mines sont construites dans les villes)
+        has_city = jnp.where(in_bounds, state.city_level[ny, nx] > 0, False)
+        
+        has_mine = is_mountain_mine | has_city
+        
+        return jnp.where(has_mine, acc + 1, acc)
+    
+    return jax.lax.fori_loop(0, HARVEST_NEIGHBOR_DELTAS.shape[0], check_delta, count)
+
+
+def _count_adjacent_huts(state: GameState, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """Compte les huttes adjacentes."""
+    count = jnp.array(0, dtype=jnp.int32)
+    
+    def check_delta(i, acc):
+        dx = HARVEST_NEIGHBOR_DELTAS[i, 0]
+        dy = HARVEST_NEIGHBOR_DELTAS[i, 1]
+        nx = x + dx
+        ny = y + dy
+        
+        # Utiliser la forme du terrain pour vérifier les limites
+        h, w = state.terrain.shape[0], state.terrain.shape[1]
+        in_bounds = (
+            (nx >= 0) & (nx < w) &
+            (ny >= 0) & (ny < h)
+        )
+        
+        # Pour simplifier MVP, on compte les villes adjacentes (chaque ville peut avoir une hutte)
+        has_city = jnp.where(in_bounds, state.city_level[ny, nx] > 0, False)
+        
+        return jnp.where(has_city, acc + 1, acc)
+    
+    return jax.lax.fori_loop(0, HARVEST_NEIGHBOR_DELTAS.shape[0], check_delta, count)
+
+
 def _perform_build(state: GameState, building_type: jnp.ndarray, target_x: jnp.ndarray, target_y: jnp.ndarray) -> GameState:
     """Applique les effets d'un bâtiment validé."""
-    pop_gain = BUILDING_POP_GAIN[building_type]
     cost = BUILDING_COST[building_type]
-    new_population_value = state.city_population[target_y, target_x] + pop_gain
+    new_player_stars = state.player_stars.at[state.current_player].add(-cost)
     
+    # Identifier le type de bâtiment
     is_port = building_type == BuildingType.PORT
+    is_windmill = building_type == BuildingType.WINDMILL
+    is_forge = building_type == BuildingType.FORGE
+    is_sawmill = building_type == BuildingType.SAWMILL
+    is_market = building_type == BuildingType.MARKET
+    is_temple = building_type == BuildingType.TEMPLE
+    is_monument = building_type == BuildingType.MONUMENT
+    is_wall = building_type == BuildingType.CITY_WALL
+    is_park = building_type == BuildingType.PARK
     
-    def apply_port(state):
-        new_player_stars = state.player_stars.at[state.current_player].add(-cost)
-        new_ports = state.city_has_port.at[target_y, target_x].set(True)
-        return state.replace(
-            player_stars=new_player_stars,
-            city_has_port=new_ports,
-        )
+    # Appliquer les effets selon le type
+    state = state.replace(player_stars=new_player_stars)
     
-    def apply_population_build(state):
-        updated_state = _set_city_population(state, target_x, target_y, new_population_value)
-        new_player_stars = updated_state.player_stars.at[updated_state.current_player].add(-cost)
-        return updated_state.replace(player_stars=new_player_stars)
-    
-    return jax.lax.cond(
+    # Port
+    state = jax.lax.cond(
         is_port,
-        apply_port,
-        apply_population_build,
+        lambda s: s.replace(city_has_port=s.city_has_port.at[target_y, target_x].set(True)),
+        lambda s: s,
         state
     )
+    
+    # Windmill : +1 pop par ferme adjacente
+    def apply_windmill(s):
+        farm_count = _count_adjacent_farms(s, target_x, target_y)
+        pop_gain = farm_count  # +1 pop par ferme adjacente
+        new_pop = s.city_population[target_y, target_x] + pop_gain
+        updated = _set_city_population(s, target_x, target_y, new_pop)
+        return updated.replace(city_has_windmill=updated.city_has_windmill.at[target_y, target_x].set(True))
+    
+    state = jax.lax.cond(is_windmill, apply_windmill, lambda s: s, state)
+    
+    # Forge : +2 pop par mine adjacente
+    def apply_forge(s):
+        mine_count = _count_adjacent_mines(s, target_x, target_y)
+        pop_gain = mine_count * 2  # +2 pop par mine adjacente
+        new_pop = s.city_population[target_y, target_x] + pop_gain
+        updated = _set_city_population(s, target_x, target_y, new_pop)
+        return updated.replace(city_has_forge=updated.city_has_forge.at[target_y, target_x].set(True))
+    
+    state = jax.lax.cond(is_forge, apply_forge, lambda s: s, state)
+    
+    # Sawmill : +1 pop par hutte adjacente
+    def apply_sawmill(s):
+        hut_count = _count_adjacent_huts(s, target_x, target_y)
+        pop_gain = hut_count  # +1 pop par hutte adjacente
+        new_pop = s.city_population[target_y, target_x] + pop_gain
+        updated = _set_city_population(s, target_x, target_y, new_pop)
+        return updated.replace(city_has_sawmill=updated.city_has_sawmill.at[target_y, target_x].set(True))
+    
+    state = jax.lax.cond(is_sawmill, apply_sawmill, lambda s: s, state)
+    
+    # Market : génère des étoiles chaque tour (sera géré dans _compute_income_for_player)
+    state = jax.lax.cond(
+        is_market,
+        lambda s: s.replace(city_has_market=s.city_has_market.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
+    
+    # Temple : niveau 1 initial
+    state = jax.lax.cond(
+        is_temple,
+        lambda s: s.replace(
+            city_has_temple=s.city_has_temple.at[target_y, target_x].set(True),
+            city_temple_level=s.city_temple_level.at[target_y, target_x].set(1)
+        ),
+        lambda s: s,
+        state
+    )
+    
+    # Monument
+    state = jax.lax.cond(
+        is_monument,
+        lambda s: s.replace(city_has_monument=s.city_has_monument.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
+    
+    # City Wall
+    state = jax.lax.cond(
+        is_wall,
+        lambda s: s.replace(city_has_wall=s.city_has_wall.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
+    
+    # Park
+    state = jax.lax.cond(
+        is_park,
+        lambda s: s.replace(city_has_park=s.city_has_park.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
+    
+    # Bâtiments avec pop_gain direct (FARM, MINE, HUT)
+    pop_gain = BUILDING_POP_GAIN[building_type]
+    has_direct_pop = pop_gain > 0
+    
+    def apply_population_build(s):
+        new_population_value = s.city_population[target_y, target_x] + pop_gain
+        return _set_city_population(s, target_x, target_y, new_population_value)
+    
+    state = jax.lax.cond(
+        has_direct_pop & ~is_port & ~is_windmill & ~is_forge & ~is_sawmill,
+        apply_population_build,
+        lambda s: s,
+        state
+    )
+    
+    return state
 
 
 def _apply_harvest_resource(state: GameState, decoded: dict) -> GameState:
@@ -463,6 +810,78 @@ def _apply_harvest_resource(state: GameState, decoded: dict) -> GameState:
     )
 
 
+def _apply_recover(state: GameState, decoded: dict) -> GameState:
+    """Applique l'action de guérison (Recover) d'une unité."""
+    unit_id_val = decoded.get("unit_id", -1)
+    
+    # Convertir unit_id
+    unit_id = jnp.asarray(unit_id_val, dtype=jnp.int32) if not isinstance(unit_id_val, (int, type(None))) else (jnp.array(unit_id_val, dtype=jnp.int32) if unit_id_val is not None and unit_id_val >= 0 else jnp.array(-1, dtype=jnp.int32))
+    
+    # Vérifier que l'unité est valide
+    is_unit_valid = (
+        (unit_id >= 0)
+        & (unit_id < state.max_units)
+        & state.units_active[unit_id]
+        & (state.units_owner[unit_id] == state.current_player)
+        & (~state.units_has_acted[unit_id])
+    )
+    
+    def do_recover(state):
+        unit_hp = state.units_hp[unit_id]
+        unit_type = state.units_type[unit_id]
+        unit_max_hp = UNIT_HP_MAX[unit_type]
+        unit_pos = state.units_pos[unit_id]
+        x, y = unit_pos[0], unit_pos[1]
+        
+        # Vérifier que l'unité n'est pas à HP max
+        needs_healing = unit_hp < unit_max_hp
+        
+        # Déterminer si territoire ami (en ville amie ou adjacente à ville amie)
+        in_bounds = (x >= 0) & (x < state.width) & (y >= 0) & (y < state.height)
+        
+        # Vérifier si unité est en ville amie
+        x_safe = jnp.clip(x, 0, state.width - 1)
+        y_safe = jnp.clip(y, 0, state.height - 1)
+        is_in_city = (state.city_level[y_safe, x_safe] > 0) & (state.city_owner[y_safe, x_safe] == state.current_player)
+        
+        # Vérifier si adjacente à ville amie
+        has_adjacent_city, _, _ = _find_adjacent_friendly_city(
+            state, x, y, state.current_player
+        )
+        
+        is_friendly_territory = (is_in_city | has_adjacent_city) & in_bounds
+        
+        # Guérir 4 HP en territoire ami, 2 HP ailleurs
+        heal_amount = jnp.where(is_friendly_territory, 4, 2)
+        
+        # Calculer nouveau HP (limité à maxHP)
+        new_hp = jnp.minimum(unit_hp + heal_amount, unit_max_hp)
+        
+        can_recover = needs_healing & in_bounds
+        
+        def perform_heal(state):
+            new_units_hp = state.units_hp.at[unit_id].set(new_hp)
+            new_units_has_acted = state.units_has_acted.at[unit_id].set(True)
+            return state.replace(
+                units_hp=new_units_hp,
+                units_has_acted=new_units_has_acted,
+            )
+        
+        return jax.lax.cond(
+            can_recover,
+            perform_heal,
+            lambda s: s,
+            state
+        )
+    
+    return jax.lax.cond(
+        is_unit_valid,
+        do_recover,
+        lambda s: s,
+        state
+    )
+
+
 def _apply_research_tech(state: GameState, decoded: dict) -> GameState:
     """Applique une recherche technologique."""
     tech_id_val = decoded.get("unit_type", -1)
@@ -473,16 +892,17 @@ def _apply_research_tech(state: GameState, decoded: dict) -> GameState:
     )
     
     def do_research(state):
-        already_unlocked = state.player_techs[state.current_player, tech_id]
-        cost = TECH_COST[tech_id]
+        player_id = state.current_player
+        already_unlocked = state.player_techs[player_id, tech_id]
+        cost = _compute_tech_cost(state, tech_id, player_id)
         has_cost = cost > 0
-        has_stars = state.player_stars[state.current_player] >= cost
+        has_stars = state.player_stars[player_id] >= cost
         deps_met = _tech_dependencies_met_state(state, tech_id)
         can_research = (~already_unlocked) & has_cost & has_stars & deps_met
         
         def perform(state):
-            new_player_techs = state.player_techs.at[state.current_player, tech_id].set(True)
-            new_player_stars = state.player_stars.at[state.current_player].add(-cost)
+            new_player_techs = state.player_techs.at[player_id, tech_id].set(True)
+            new_player_stars = state.player_stars.at[player_id].add(-cost)
             return state.replace(
                 player_techs=new_player_techs,
                 player_stars=new_player_stars,
@@ -501,6 +921,68 @@ def _apply_research_tech(state: GameState, decoded: dict) -> GameState:
         lambda s: s,
         state
     )
+
+
+def _compute_defense_bonus(state: GameState, unit_id: int, unit_pos: jnp.ndarray) -> jnp.ndarray:
+    """Calcule le bonus de défense d'une unité selon son terrain et les technologies.
+    
+    Args:
+        state: État du jeu
+        unit_id: ID de l'unité
+        unit_pos: Position de l'unité [x, y]
+    
+    Returns:
+        Bonus de défense (1.0 = aucun, 1.5 = standard, 4.0 = murs de ville)
+    """
+    x = unit_pos[0]
+    y = unit_pos[1]
+    unit_owner = state.units_owner[unit_id]
+    
+    # Vérifier les limites
+    in_bounds = (x >= 0) & (x < state.width) & (y >= 0) & (y < state.height)
+    
+    # Utiliser des indices sécurisés pour éviter les erreurs hors limites
+    x_safe = jnp.clip(x, 0, state.width - 1)
+    y_safe = jnp.clip(y, 0, state.height - 1)
+    
+    terrain = state.terrain[y_safe, x_safe]
+    is_forest = _is_forest_terrain(terrain)
+    is_mountain = _is_mountain_terrain(terrain)
+    is_water = _is_shallow_water_terrain(terrain) | (terrain == TerrainType.WATER_DEEP)
+    is_city = (state.city_level[y_safe, x_safe] > 0) & (state.city_owner[y_safe, x_safe] == unit_owner)
+    
+    # Vérifier les technologies du propriétaire de l'unité
+    has_archery = state.player_techs[unit_owner, TechType.ARCHERY]
+    has_climbing = state.player_techs[unit_owner, TechType.CLIMBING]
+    has_aquatism = state.player_techs[unit_owner, TechType.AQUATISM]
+    
+    # Bonus selon terrain et technologies
+    # Forêt : 1.5x si ARCHERY recherchée
+    forest_bonus = jnp.where(is_forest & has_archery, 1.5, 1.0)
+    
+    # Montagne : 1.5x si CLIMBING recherchée
+    mountain_bonus = jnp.where(is_mountain & has_climbing, 1.5, 1.0)
+    
+    # Eau : 1.5x si AQUATISM recherchée
+    water_bonus = jnp.where(is_water & has_aquatism, 1.5, 1.0)
+    
+    # Ville : 1.5x si unité en ville amie (simplification MVP : toutes unités ont Fortify)
+    # TODO: Vérifier compétence Fortify quand système de compétences sera implémenté
+    city_bonus = jnp.where(is_city, 1.5, 1.0)
+    
+    # Ville avec murs : 4.0x
+    has_wall = state.city_has_wall[y_safe, x_safe]
+    city_wall_bonus = jnp.where(is_city & has_wall, 4.0, city_bonus)
+    
+    # Prendre le bonus le plus élevé applicable
+    # Ordre de priorité : ville avec murs > ville > terrain spécial
+    bonus = jnp.maximum(
+        jnp.maximum(forest_bonus, mountain_bonus),
+        jnp.maximum(water_bonus, city_wall_bonus)
+    )
+    
+    # Retourner 1.0 si hors limites, sinon le bonus calculé
+    return jnp.where(in_bounds, bonus, 1.0)
 
 
 def _apply_attack(state: GameState, decoded: dict) -> GameState:
@@ -562,26 +1044,64 @@ def _apply_attack(state: GameState, decoded: dict) -> GameState:
 
 
 def _perform_combat(state: GameState, attacker_id: int, target_id: int, distance: jnp.ndarray) -> GameState:
-    """Effectue un combat entre deux unités."""
+    """Effectue un combat entre deux unités selon la formule complète de Polytopia."""
     attacker_type = state.units_type[attacker_id]
     target_type = state.units_type[target_id]
     
     # Récupérer les stats (utiliser les arrays JAX)
     attacker_attack = UNIT_ATTACK[attacker_type]
     attacker_defense = UNIT_DEFENSE[attacker_type]
+    attacker_max_hp = UNIT_HP_MAX[attacker_type]
+    attacker_hp = state.units_hp[attacker_id]
+    
     target_attack = UNIT_ATTACK[target_type]
     target_defense = UNIT_DEFENSE[target_type]
+    target_max_hp = UNIT_HP_MAX[target_type]
+    target_hp = state.units_hp[target_id]
     
-    # Calculer les dégâts
-    # Dégâts = Attaque - Défense (minimum 1)
-    damage_to_target = jnp.maximum(1, attacker_attack - target_defense)
-    damage_to_attacker = jnp.maximum(1, target_attack - attacker_defense)
+    # Calculer le bonus de défense de la cible
+    target_pos = state.units_pos[target_id]
+    defense_bonus = _compute_defense_bonus(state, target_id, target_pos)
+    
+    # Formule de combat complète de Polytopia
+    # attackForce = attacker.attack * (attacker.health / attacker.maxHealth)
+    attacker_hp_ratio = jnp.where(attacker_max_hp > 0, attacker_hp / attacker_max_hp, 0.0)
+    attack_force = attacker_attack.astype(jnp.float32) * attacker_hp_ratio
+    
+    # defenseForce = defender.defense * (defender.health / defender.maxHealth) * defenseBonus
+    target_hp_ratio = jnp.where(target_max_hp > 0, target_hp / target_max_hp, 0.0)
+    defense_force = target_defense.astype(jnp.float32) * target_hp_ratio * defense_bonus
+    
+    # totalDamage = attackForce + defenseForce
+    total_damage = attack_force + defense_force
+    
+    # Gérer division par zéro
+    safe_total = jnp.where(total_damage > 0, total_damage, 1.0)
+    
+    # attackResult = round((attackForce / totalDamage) * attacker.attack * 4.5)
+    attack_result = jnp.round((attack_force / safe_total) * attacker_attack.astype(jnp.float32) * 4.5).astype(jnp.int32)
+    
+    # defenseResult = round((defenseForce / totalDamage) * defender.defense * 4.5)
+    defense_result = jnp.round((defense_force / safe_total) * target_defense.astype(jnp.float32) * 4.5).astype(jnp.int32)
+    
+    # Vérifier si contre-attaque autorisée (pas si unité à distance tue la cible)
     attacker_range = UNIT_ATTACK_RANGE[attacker_type]
     allow_retaliation = jnp.where(attacker_range > 1, distance <= 1, True)
-    counter_damage = jnp.where(allow_retaliation, damage_to_attacker, 0)
+    
+    # Appliquer les dégâts à la cible
+    new_target_hp = state.units_hp[target_id] - attack_result
+    target_dead_after_attack = new_target_hp <= 0
+    
+    # Pas de contre-attaque si la cible est tuée (selon règles Polytopia)
+    # Mais on vérifie aussi la portée pour les unités à distance
+    counter_damage = jnp.where(
+        allow_retaliation & ~target_dead_after_attack,
+        defense_result,
+        0
+    )
     
     # Appliquer les dégâts
-    new_units_hp = state.units_hp.at[target_id].add(-damage_to_target)
+    new_units_hp = state.units_hp.at[target_id].set(jnp.maximum(0, new_target_hp))
     new_units_hp = new_units_hp.at[attacker_id].add(-counter_damage)
     
     # Vérifier si des unités sont détruites
@@ -656,7 +1176,14 @@ def _apply_train_unit(state: GameState, decoded: dict) -> GameState:
         cost = UNIT_COST[unit_type]
         has_cost = cost > 0
         has_stars = state.player_stars[state.current_player] >= cost
-        can_train = is_city & is_owner & has_cost & has_stars
+        # Vérifier la technologie requise
+        required_tech = UNIT_REQUIRED_TECH[unit_type]
+        has_required_tech = jnp.where(
+            required_tech == int(TechType.NONE),
+            True,
+            state.player_techs[state.current_player, required_tech],
+        )
+        can_train = is_city & is_owner & has_cost & has_stars & has_required_tech
         
         return jax.lax.cond(
             can_train,
@@ -727,11 +1254,23 @@ def _apply_end_turn(state: GameState) -> GameState:
     # Si on revient au joueur 0, incrémenter le tour
     new_turn = jnp.where(next_player == 0, state.turn + 1, state.turn)
     
+    # Mettre à jour la vision de tous les joueurs
+    def update_player_vision(i, tiles_visible):
+        player_vision = _compute_player_vision(state, i)
+        return tiles_visible.at[i].set(player_vision)
+    
+    new_tiles_visible = jax.lax.fori_loop(
+        0, state.num_players,
+        update_player_vision,
+        state.tiles_visible
+    )
+    
     state = state.replace(
         player_stars=new_player_stars,
         current_player=next_player,
         turn=new_turn,
         units_has_acted=jnp.zeros_like(state.units_has_acted),
+        tiles_visible=new_tiles_visible,
     )
     
     state = _check_victory(state)
@@ -913,6 +1452,133 @@ def _is_land_terrain(terrain_value: jnp.ndarray) -> jnp.ndarray:
     )
 
 
+def _compute_unit_vision(state: GameState, unit_id: int, unit_pos: jnp.ndarray) -> jnp.ndarray:
+    """Calcule le masque de vision d'une unité.
+    
+    Args:
+        state: État du jeu
+        unit_id: ID de l'unité
+        unit_pos: Position de l'unité [x, y]
+    
+    Returns:
+        Masque de vision [H, W] (True = visible)
+    """
+    x = unit_pos[0]
+    y = unit_pos[1]
+    
+    # Créer grille de coordonnées
+    # Utiliser la forme du terrain directement (compatible avec contexte tracé)
+    h, w = state.terrain.shape[0], state.terrain.shape[1]
+    y_coords, x_coords = jnp.meshgrid(
+        jnp.arange(h, dtype=jnp.int32),
+        jnp.arange(w, dtype=jnp.int32),
+        indexing='ij'
+    )
+    
+    # Calculer distance de Chebyshev depuis l'unité
+    dx = jnp.abs(x_coords - x)
+    dy = jnp.abs(y_coords - y)
+    distance = jnp.maximum(dx, dy)
+    
+    # Déterminer rayon de vision selon terrain
+    # Vision standard : 3x3 (rayon 1)
+    # Vision montagne : 5x5 (rayon 2)
+    x_safe = jnp.clip(x, 0, w - 1)
+    y_safe = jnp.clip(y, 0, h - 1)
+    terrain = state.terrain[y_safe, x_safe]
+    is_mountain = _is_mountain_terrain(terrain)
+    
+    # Rayon = 1 (standard) ou 2 (montagne)
+    vision_radius = jnp.where(is_mountain, 2, 1)
+    
+    # Masque de vision : distance <= rayon
+    vision_mask = distance <= vision_radius
+    
+    return vision_mask
+
+
+def _compute_city_vision(state: GameState, x: int, y: int) -> jnp.ndarray:
+    """Calcule le masque de vision d'une ville (vision 3x3 autour).
+    
+    Args:
+        state: État du jeu
+        x, y: Position de la ville
+    
+    Returns:
+        Masque de vision [H, W] (True = visible)
+    """
+    # Utiliser la forme du terrain directement (compatible avec contexte tracé)
+    h, w = state.terrain.shape[0], state.terrain.shape[1]
+    y_coords, x_coords = jnp.meshgrid(
+        jnp.arange(h, dtype=jnp.int32),
+        jnp.arange(w, dtype=jnp.int32),
+        indexing='ij'
+    )
+    
+    # Distance de Chebyshev depuis la ville
+    dx = jnp.abs(x_coords - x)
+    dy = jnp.abs(y_coords - y)
+    distance = jnp.maximum(dx, dy)
+    
+    # Vision standard 3x3 (rayon 1) pour villes
+    vision_mask = distance <= 1
+    
+    return vision_mask
+
+
+def _compute_player_vision(state: GameState, player_id: int) -> jnp.ndarray:
+    """Calcule la vision totale d'un joueur (combine unités et villes).
+    
+    Args:
+        state: État du jeu
+        player_id: ID du joueur
+    
+    Returns:
+        Masque de vision [H, W] (True = visible)
+    """
+    # Utiliser la forme du terrain directement (compatible avec contexte tracé)
+    h, w = state.terrain.shape[0], state.terrain.shape[1]
+    total_vision = jnp.zeros((h, w), dtype=jnp.bool_)
+    
+    # Vision des unités actives du joueur
+    def add_unit_vision(unit_id, vision):
+        unit_pos = state.units_pos[unit_id]
+        unit_vision = _compute_unit_vision(state, unit_id, unit_pos)
+        return vision | unit_vision
+    
+    # Parcourir toutes les unités actives du joueur
+    player_units_mask = (state.units_owner == player_id) & state.units_active
+    # Utiliser la longueur de units_type directement (compatible avec contexte tracé)
+    max_units = state.units_type.shape[0]
+    unit_ids = jnp.arange(max_units, dtype=jnp.int32)
+    
+    def scan_unit(unit_id, vision):
+        has_unit = player_units_mask[unit_id]
+        unit_pos = state.units_pos[unit_id]
+        unit_vision = _compute_unit_vision(state, unit_id, unit_pos)
+        return jnp.where(has_unit, vision | unit_vision, vision)
+    
+    # Utiliser la longueur de units_type directement (compatible avec contexte tracé)
+    max_units = state.units_type.shape[0]
+    total_vision = jax.lax.fori_loop(0, max_units, lambda i, v: scan_unit(i, v), total_vision)
+    
+    # Vision des villes du joueur
+    def add_city_vision(y, x, vision):
+        has_city = (state.city_level[y, x] > 0) & (state.city_owner[y, x] == player_id)
+        city_vision = _compute_city_vision(state, x, y)
+        return jnp.where(has_city, vision | city_vision, vision)
+    
+    # Parcourir toutes les cases pour trouver les villes
+    def scan_city_row(y, vision):
+        def scan_city_col(x, v):
+            return add_city_vision(y, x, v)
+        return jax.lax.fori_loop(0, w, scan_city_col, vision)
+    
+    total_vision = jax.lax.fori_loop(0, h, scan_city_row, total_vision)
+    
+    return total_vision
+
+
 def _is_friendly_port(state: GameState, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     has_port = state.city_has_port[y, x]
     owner = state.city_owner[y, x]
@@ -977,8 +1643,19 @@ def _compute_income_for_player(state: GameState, player_id: jnp.ndarray) -> jnp.
     tile_income = CITY_STAR_INCOME_PER_LEVEL[state.city_level]
     owned_income = jnp.where(state.city_owner == player_id, tile_income, 0)
     base_income = jnp.sum(owned_income, dtype=jnp.int32)
+    
+    # Ajouter revenus des marchés (+1★ par marché)
+    market_income = jnp.sum(
+        jnp.where(
+            (state.city_owner == player_id) & state.city_has_market,
+            1,
+            0
+        ),
+        dtype=jnp.int32
+    )
+    
     bonus = state.player_income_bonus[player_id]
-    return base_income + bonus
+    return base_income + market_income + bonus
 
 
 def _player_can_harvest(state: GameState) -> jnp.ndarray:
@@ -1072,6 +1749,44 @@ def _find_adjacent_friendly_city(
     )
 
 
+def _compute_tech_cost(state: GameState, tech_id: jnp.ndarray, player_id: jnp.ndarray) -> jnp.ndarray:
+    """Calcule le coût dynamique d'une technologie selon nombre de villes et Philosophy.
+    
+    Formule Polytopia: cost = tier * num_cities + 4
+    Avec Philosophy: cost = ceil(cost * 0.67) (réduction de 33%)
+    
+    Args:
+        state: État du jeu
+        tech_id: ID de la technologie
+        player_id: ID du joueur
+    
+    Returns:
+        Coût de la technologie (en étoiles)
+    """
+    tier = TECH_TIER[tech_id]
+    
+    # Compter le nombre de villes du joueur
+    num_cities = jnp.sum(
+        (state.city_owner == player_id) & (state.city_level > 0),
+        dtype=jnp.int32
+    )
+    
+    # Coût de base selon formule Polytopia: tier * num_cities + 4
+    base_cost = tier * num_cities + 4
+    
+    # Vérifier si le joueur a Philosophy
+    has_philosophy = state.player_techs[player_id, TechType.PHILOSOPHY]
+    
+    # Appliquer réduction de 33% si Philosophy (arrondi vers le haut)
+    discounted_cost = jnp.ceil(base_cost * 0.67).astype(jnp.int32)
+    
+    # Utiliser le coût réduit si Philosophy, sinon coût de base
+    final_cost = jnp.where(has_philosophy, discounted_cost, base_cost)
+    
+    # Retourner 0 si tech_id invalide
+    return jnp.where(tech_id > 0, final_cost, 0)
+
+
 def _min_positive_cost(costs: jnp.ndarray) -> jnp.ndarray:
     """Retourne le coût positif minimal d'un tableau (ou un entier max sinon)."""
     max_int = jnp.iinfo(jnp.int32).max
@@ -1098,11 +1813,17 @@ def legal_actions_mask(state: GameState) -> jnp.ndarray:
     
     player_techs_row = state.player_techs[state.current_player]
     deps_met = _tech_dependencies_mask(player_techs_row)
+    
+    # Calculer les coûts dynamiques pour toutes les technologies
+    player_id = state.current_player
+    tech_ids = jnp.arange(NUM_TECHS, dtype=jnp.int32)
+    tech_costs = jax.vmap(lambda tid: _compute_tech_cost(state, tid, player_id))(tech_ids)
+    
     available_techs = (
-        (TECH_COST > 0)
+        (tech_costs > 0)
         & (~player_techs_row)
         & deps_met
-        & (stars >= TECH_COST)
+        & (stars >= tech_costs)
     )
     can_research = jnp.any(available_techs)
     mask = mask.at[ActionType.RESEARCH_TECH].set(can_research)
