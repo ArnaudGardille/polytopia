@@ -432,3 +432,8 @@ Les différences les plus critiques concernent :
 
 Ces limitations réduisent significativement la profondeur stratégique accessible aux joueurs via l'interface web.
 
+
+
+
+
+

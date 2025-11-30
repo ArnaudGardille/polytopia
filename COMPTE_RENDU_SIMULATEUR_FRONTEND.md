@@ -429,3 +429,8 @@ export function encodeAction(params: {
 3. **Exposer les actions légales** : Endpoint API pour calcul exact côté frontend
 4. **Tests de compatibilité** : Vérifier que les actions encodées fonctionnent des deux côtés
 
+
+
+
+
+

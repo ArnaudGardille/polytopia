@@ -163,3 +163,8 @@ def test_direction_deltas_are_simple():
         assert delta[0] in [-1, 0, 1], f"Direction {direction.name}: dx doit être dans {{-1, 0, 1}}, obtenu {delta[0]}"
         assert delta[1] in [-1, 0, 1], f"Direction {direction.name}: dy doit être dans {{-1, 0, 1}}, obtenu {delta[1]}"
 
+
+
+
+
+
