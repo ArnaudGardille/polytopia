@@ -1,5 +1,6 @@
-import { useMemo, useEffect, useState, useRef, useCallback, type MouseEvent, type WheelEvent } from 'react';
+import { useMemo, useEffect, useState, useRef, useCallback, type MouseEvent } from 'react';
 import type { GameStateView, CityView } from '../types';
+import { ResourceType } from '../types';
 import { getTerrainIcon, getPlayerColor, getUnitIcon, getCityIcon } from '../utils/iconMapper';
 import { HARVEST_ZONE_OFFSETS } from '../data/resources';
 
@@ -7,8 +8,6 @@ import { HARVEST_ZONE_OFFSETS } from '../data/resources';
 const BASE_TILE_WIDTH = 2067;
 const BASE_TILE_HEIGHT = 2249;
 const TILE_HEIGHT_OVER_WIDTH = BASE_TILE_HEIGHT / BASE_TILE_WIDTH; // ≈ 1.088
-// Ajustement empirique : seule ~68 % de la hauteur (la partie « losange ») doit rester visible
-const TOP_OVERLAP_RATIO = 0.68;
 
 export type MoveTarget = {
   x: number;
@@ -181,42 +180,6 @@ export function Board({
     });
     return zone;
   }, [selectedCityPos, width, height]);
-
-  // Conversion des coordonnées client vers coordonnées SVG
-  const clientToSVG = useCallback((clientX: number, clientY: number): [number, number] => {
-    if (!svgRef.current) return [0, 0];
-    const svg = svgRef.current;
-    const rect = svg.getBoundingClientRect();
-    const viewBox = svg.viewBox.baseVal;
-    const x = ((clientX - rect.left) / rect.width) * viewBox.width + viewBox.x;
-    const y = ((clientY - rect.top) / rect.height) * viewBox.height + viewBox.y;
-    return [x, y];
-  }, []);
-
-  // Handler pour le zoom avec la molette
-  const handleWheel = useCallback((event: WheelEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!svgRef.current) return;
-
-    // Ralentir le zoom : facteur plus petit et basé sur deltaY
-    const zoomSpeed = 0.001;
-    const delta = 1 - event.deltaY * zoomSpeed;
-    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * delta));
-    
-    if (newZoom === zoom) return;
-
-    // Convertir la position de la souris en coordonnées SVG avant transformation
-    const [mouseX, mouseY] = clientToSVG(event.clientX, event.clientY);
-    
-    // Calculer le nouveau pan pour zoomer vers la position de la souris
-    const zoomFactor = newZoom / zoom;
-    const newPanX = mouseX - (mouseX - pan.x) * zoomFactor;
-    const newPanY = mouseY - (mouseY - pan.y) * zoomFactor;
-    
-    setZoom(newZoom);
-    setPan({ x: newPanX, y: newPanY });
-  }, [zoom, pan, clientToSVG]);
 
   // Handler pour commencer le pan sur le rectangle de fond ou les éléments de terrain
   const handleBackgroundMouseDown = useCallback((event: MouseEvent<SVGElement>) => {
@@ -456,6 +419,91 @@ export function Board({
                     pointerEvents="none"
                   />
                 )}
+                {/* Afficher les routes */}
+                {isVisible && state.has_road?.[y]?.[x] && (
+                  <rect
+                    x={centerX - tileWidth * 0.15}
+                    y={centerY - tileHeight * 0.02}
+                    width={tileWidth * 0.3}
+                    height={tileHeight * 0.04}
+                    fill="#8B7355"
+                    stroke="#5C4A33"
+                    strokeWidth={1}
+                    opacity={0.9}
+                    pointerEvents="none"
+                  />
+                )}
+                {/* Afficher les ponts */}
+                {isVisible && state.has_bridge?.[y]?.[x] && (
+                  <g pointerEvents="none">
+                    <rect
+                      x={centerX - tileWidth * 0.2}
+                      y={centerY - tileHeight * 0.03}
+                      width={tileWidth * 0.4}
+                      height={tileHeight * 0.06}
+                      fill="#A0522D"
+                      stroke="#654321"
+                      strokeWidth={1}
+                      opacity={0.95}
+                    />
+                    <line
+                      x1={centerX - tileWidth * 0.18}
+                      y1={centerY - tileHeight * 0.06}
+                      x2={centerX - tileWidth * 0.18}
+                      y2={centerY + tileHeight * 0.06}
+                      stroke="#654321"
+                      strokeWidth={2}
+                    />
+                    <line
+                      x1={centerX + tileWidth * 0.18}
+                      y1={centerY - tileHeight * 0.06}
+                      x2={centerX + tileWidth * 0.18}
+                      y2={centerY + tileHeight * 0.06}
+                      stroke="#654321"
+                      strokeWidth={2}
+                    />
+                  </g>
+                )}
+                {/* Afficher les ruines */}
+                {isVisible && state.has_ruin?.[y]?.[x] && (
+                  <g pointerEvents="none">
+                    <circle
+                      cx={centerX}
+                      cy={centerY}
+                      r={tileWidth * 0.15}
+                      fill="rgba(139, 69, 19, 0.7)"
+                      stroke="#8B4513"
+                      strokeWidth={2}
+                    />
+                    <text
+                      x={centerX}
+                      y={centerY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#FFD700"
+                      fontSize={tileWidth * 0.15}
+                      fontWeight="bold"
+                    >
+                      ?
+                    </text>
+                  </g>
+                )}
+                {/* Afficher indicateur de ressource (si non affiché par le terrain) */}
+                {isVisible && state.resource_type?.[y]?.[x] !== undefined && 
+                  state.resource_type[y][x] !== ResourceType.NONE && (
+                  <g pointerEvents="none">
+                    {/* Indicateur petit en bas à gauche de la case */}
+                    <circle
+                      cx={centerX - tileWidth * 0.25}
+                      cy={centerY + tileHeight * 0.15}
+                      r={tileWidth * 0.08}
+                      fill={state.resource_available?.[y]?.[x] ? '#22c55e' : '#6b7280'}
+                      stroke="#fff"
+                      strokeWidth={1}
+                      opacity={0.9}
+                    />
+                  </g>
+                )}
                 {isVisible && (
                   <text
                     x={centerX}
@@ -644,6 +692,47 @@ export function Board({
                   >
                     {city.level}
                   </text>
+                  {/* Indicateurs de bâtiments */}
+                  {(() => {
+                    const buildingBadges: { color: string; label: string }[] = [];
+                    if (state.city_ports?.[y]?.[x]) buildingBadges.push({ color: '#0ea5e9', label: 'P' });
+                    if (state.city_has_windmill?.[y]?.[x]) buildingBadges.push({ color: '#84cc16', label: 'W' });
+                    if (state.city_has_forge?.[y]?.[x]) buildingBadges.push({ color: '#f97316', label: 'F' });
+                    if (state.city_has_sawmill?.[y]?.[x]) buildingBadges.push({ color: '#22c55e', label: 'S' });
+                    if (state.city_has_market?.[y]?.[x]) buildingBadges.push({ color: '#eab308', label: 'M' });
+                    if (state.city_has_temple?.[y]?.[x]) buildingBadges.push({ color: '#a855f7', label: 'T' });
+                    if (state.city_has_monument?.[y]?.[x]) buildingBadges.push({ color: '#ec4899', label: 'O' });
+                    if (state.city_has_wall?.[y]?.[x]) buildingBadges.push({ color: '#6b7280', label: '⛊' });
+                    if (state.city_has_park?.[y]?.[x]) buildingBadges.push({ color: '#10b981', label: '♣' });
+                    
+                    const badgeRadius = Math.min(tileWidth, tileHeight) * 0.06;
+                    const startX = centerX - (buildingBadges.length - 1) * badgeRadius * 1.5 / 2;
+                    const badgeBaseY = iconCenterY - iconSize * 0.35;
+                    
+                    return buildingBadges.map((badge, i) => (
+                      <g key={`building-badge-${i}`}>
+                        <circle
+                          cx={startX + i * badgeRadius * 1.5}
+                          cy={badgeBaseY}
+                          r={badgeRadius}
+                          fill={badge.color}
+                          stroke="#fff"
+                          strokeWidth="0.5"
+                        />
+                        <text
+                          x={startX + i * badgeRadius * 1.5}
+                          y={badgeBaseY}
+                          textAnchor="middle"
+                          dominantBaseline="middle"
+                          fill="white"
+                          fontSize={badgeRadius * 1.2}
+                          fontWeight="bold"
+                        >
+                          {badge.label}
+                        </text>
+                      </g>
+                    ));
+                  })()}
                 </>
               ) : (
                 <>

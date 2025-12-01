@@ -13,6 +13,9 @@ class UnitView(BaseModel):
     hp: int = Field(..., description="Points de vie")
     owner: int = Field(..., description="Propriétaire de l'unité")
     has_acted: bool = Field(False, description="L'unité a déjà agi ce tour")
+    kills: int = Field(0, description="Nombre de kills de l'unité")
+    veteran: bool = Field(False, description="L'unité est vétérane")
+    payload_type: int = Field(0, description="Type original pour les radeaux")
     
     class Config:
         json_schema_extra = {
@@ -22,6 +25,9 @@ class UnitView(BaseModel):
                 "hp": 10,
                 "owner": 0,
                 "has_acted": False,
+                "kills": 0,
+                "veteran": False,
+                "payload_type": 0,
             }
         }
 
@@ -50,9 +56,26 @@ class GameStateView(BaseModel):
     cities: List[CityView] = Field(default_factory=list, description="Liste des villes")
     units: List[UnitView] = Field(default_factory=list, description="Liste des unités")
     city_population: List[List[int]] = Field(default_factory=list, description="Population de chaque case ville")
-    city_ports: List[List[int]] = Field(default_factory=list, description="Ports présents sur les villes")
+    city_ports: List[List[bool]] = Field(default_factory=list, description="Ports présents sur les villes")
     resource_type: List[List[int]] = Field(default_factory=list, description="Type de ressource par case")
     resource_available: List[List[bool]] = Field(default_factory=list, description="Disponibilité des ressources (True = disponible)")
+    
+    # Routes, ponts et ruines
+    has_road: List[List[bool]] = Field(default_factory=list, description="Présence d'une route [H, W]")
+    has_bridge: List[List[bool]] = Field(default_factory=list, description="Présence d'un pont [H, W]")
+    has_ruin: List[List[bool]] = Field(default_factory=list, description="Présence d'une ruine non explorée [H, W]")
+    
+    # Bâtiments de ville
+    city_has_windmill: List[List[bool]] = Field(default_factory=list, description="Présence d'un moulin [H, W]")
+    city_has_forge: List[List[bool]] = Field(default_factory=list, description="Présence d'une forge [H, W]")
+    city_has_sawmill: List[List[bool]] = Field(default_factory=list, description="Présence d'une scierie [H, W]")
+    city_has_market: List[List[bool]] = Field(default_factory=list, description="Présence d'un marché [H, W]")
+    city_has_temple: List[List[bool]] = Field(default_factory=list, description="Présence d'un temple [H, W]")
+    city_temple_level: List[List[int]] = Field(default_factory=list, description="Niveau du temple [H, W]")
+    city_has_monument: List[List[bool]] = Field(default_factory=list, description="Présence d'un monument [H, W]")
+    city_has_wall: List[List[bool]] = Field(default_factory=list, description="Présence de murs [H, W]")
+    city_has_park: List[List[bool]] = Field(default_factory=list, description="Présence d'un parc [H, W]")
+    
     player_stars: List[int] = Field(default_factory=list, description="Ressources économiques par joueur")
     player_income: List[int] = Field(default_factory=list, description="Gain d'étoiles par tour pour chaque joueur")
     player_score: List[int] = Field(default_factory=list, description="Score total par joueur")
@@ -134,6 +157,9 @@ class GameStateView(BaseModel):
                 hp=unit["hp"],
                 owner=unit["owner"],
                 has_acted=unit.get("has_acted", False),
+                kills=unit.get("kills", 0),
+                veteran=unit.get("veteran", False),
+                payload_type=unit.get("payload_type", 0),
             )
             for idx, unit in enumerate(raw_units)
             if is_visible(unit["pos"][1], unit["pos"][0])  # pos = [x, y], donc y=pos[1], x=pos[0]
@@ -148,6 +174,22 @@ class GameStateView(BaseModel):
         resource_available = state.get("resource_available", [])
         visibility_mask = state.get("visibility_mask")
         
+        # Routes, ponts et ruines
+        has_road = state.get("has_road", [])
+        has_bridge = state.get("has_bridge", [])
+        has_ruin = state.get("has_ruin", [])
+        
+        # Bâtiments de ville
+        city_has_windmill = state.get("city_has_windmill", [])
+        city_has_forge = state.get("city_has_forge", [])
+        city_has_sawmill = state.get("city_has_sawmill", [])
+        city_has_market = state.get("city_has_market", [])
+        city_has_temple = state.get("city_has_temple", [])
+        city_temple_level = state.get("city_temple_level", [])
+        city_has_monument = state.get("city_has_monument", [])
+        city_has_wall = state.get("city_has_wall", [])
+        city_has_park = state.get("city_has_park", [])
+        
         # Utiliser model_validate pour éviter la validation supplémentaire
         result = cls.model_validate({
             "terrain": terrain,
@@ -157,6 +199,21 @@ class GameStateView(BaseModel):
             "city_ports": city_ports,
             "resource_type": resource_type,
             "resource_available": resource_available,
+            # Routes, ponts et ruines
+            "has_road": has_road,
+            "has_bridge": has_bridge,
+            "has_ruin": has_ruin,
+            # Bâtiments de ville
+            "city_has_windmill": city_has_windmill,
+            "city_has_forge": city_has_forge,
+            "city_has_sawmill": city_has_sawmill,
+            "city_has_market": city_has_market,
+            "city_has_temple": city_has_temple,
+            "city_temple_level": city_temple_level,
+            "city_has_monument": city_has_monument,
+            "city_has_wall": city_has_wall,
+            "city_has_park": city_has_park,
+            # Joueurs et état
             "player_stars": player_stars,
             "player_income": player_income,
             "player_score": player_score,

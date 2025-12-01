@@ -162,6 +162,9 @@ TECH_TIER = jnp.array([
     2,  # STRATEGY (T2)
     3,  # AQUATISM (T3)
     3,  # PHILOSOPHY (T3)
+    3,  # SMITHERY (T3)
+    3,  # CHIVALRY (T3)
+    3,  # MATHEMATICS (T3)
 ], dtype=jnp.int32)
 
 # Coûts de base pour compatibilité (coût pour 0 villes, base = 4)
@@ -219,6 +222,14 @@ for i in range(NUM_TECHS):
         deps[TechType.RAMMING] = True
     elif tech == TechType.PHILOSOPHY:
         deps[TechType.MEDITATION] = True
+    elif tech == TechType.SMITHERY:
+        deps[TechType.MINING] = True
+    elif tech == TechType.CHIVALRY:
+        deps[TechType.RIDING] = True
+        deps[TechType.FORESTRY] = True
+    elif tech == TechType.MATHEMATICS:
+        deps[TechType.ORGANIZATION] = True
+        deps[TechType.FORESTRY] = True
     
     tech_deps_rows.append(deps)
 
@@ -663,9 +674,27 @@ def _perform_build(state: GameState, building_type: jnp.ndarray, target_x: jnp.n
     is_monument = building_type == BuildingType.MONUMENT
     is_wall = building_type == BuildingType.CITY_WALL
     is_park = building_type == BuildingType.PARK
+    is_road = building_type == BuildingType.ROAD
+    is_bridge = building_type == BuildingType.BRIDGE
     
     # Appliquer les effets selon le type
     state = state.replace(player_stars=new_player_stars)
+    
+    # Route
+    state = jax.lax.cond(
+        is_road,
+        lambda s: s.replace(has_road=s.has_road.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
+    
+    # Pont
+    state = jax.lax.cond(
+        is_bridge,
+        lambda s: s.replace(has_bridge=s.has_bridge.at[target_y, target_x].set(True)),
+        lambda s: s,
+        state
+    )
     
     # Port
     state = jax.lax.cond(

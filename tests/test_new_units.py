@@ -275,7 +275,9 @@ def test_catapult_cannot_attack_beyond_range():
 
 def test_knight_high_movement():
     """Un Knight peut se déplacer de 3 cases."""
-    state = _make_empty_state(stars_per_player=20)
+    state = _make_empty_state(height=6, width=6, stars_per_player=20)
+    # Ajouter une ville pour le joueur 1 pour éviter que le jeu soit considéré terminé
+    state = _with_city(state, 5, 5, owner=1, level=1, population=1)
     
     # Créer un Knight
     units_type = state.units_type.at[0].set(UnitType.KNIGHT)
@@ -284,12 +286,16 @@ def test_knight_high_movement():
     units_hp = state.units_hp.at[0].set(15)
     units_active = state.units_active.at[0].set(True)
     
+    # Marquer les cases explorées pour permettre le mouvement
+    tiles_explored = state.tiles_explored.at[0, :, :].set(True)
+    
     state = state.replace(
         units_type=units_type,
         units_owner=units_owner,
         units_pos=units_pos,
         units_hp=units_hp,
         units_active=units_active,
+        tiles_explored=tiles_explored,
     )
     
     # Déplacer vers la droite (1 case)
@@ -402,21 +408,21 @@ def test_tech_cost_dynamic():
     
     # 0 villes
     cost_0_cities = _compute_tech_cost(state, TechType.CHIVALRY, 0)
-    assert int(cost_0_cities) == 4  # tier 2 * 0 villes + 4
+    assert int(cost_0_cities) == 4  # tier 3 * 0 villes + 4
     
     # Ajouter 1 ville
     city_owner = state.city_owner.at[0, 0].set(0)
     city_level = state.city_level.at[0, 0].set(1)
     state = state.replace(city_owner=city_owner, city_level=city_level)
     cost_1_city = _compute_tech_cost(state, TechType.CHIVALRY, 0)
-    assert int(cost_1_city) == 6  # tier 2 * 1 ville + 4
+    assert int(cost_1_city) == 7  # tier 3 * 1 ville + 4
     
     # Ajouter une 2e ville
     city_owner = city_owner.at[2, 2].set(0)
     city_level = city_level.at[2, 2].set(1)
     state = state.replace(city_owner=city_owner, city_level=city_level)
     cost_2_cities = _compute_tech_cost(state, TechType.CHIVALRY, 0)
-    assert int(cost_2_cities) == 8  # tier 2 * 2 villes + 4
+    assert int(cost_2_cities) == 10  # tier 3 * 2 villes + 4
 
 
 def test_tech_dependencies_smithery():

@@ -288,8 +288,16 @@ def update_scores(state: GameState) -> GameState:
         return final_score
     
     # Appliquer bonus pour chaque joueur
-    player_ids = jnp.arange(state.num_players, dtype=jnp.int32)
-    final_scores = jax.vmap(compute_multiplier_per_player)(player_ids, totals)
+    # Utiliser fori_loop pour compatibilité JIT
+    num_players_val = totals.shape[0]
+    
+    def compute_for_player(i, scores):
+        player_id = jnp.array(i, dtype=jnp.int32)
+        base_score = totals[i]
+        score = compute_multiplier_per_player(player_id, base_score)
+        return scores.at[i].set(score)
+    
+    final_scores = jax.lax.fori_loop(0, num_players_val, compute_for_player, jnp.zeros_like(totals))
     
     return state.replace(
         player_score=final_scores,

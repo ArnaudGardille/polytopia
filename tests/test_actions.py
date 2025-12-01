@@ -60,9 +60,15 @@ def test_all_action_types():
     for action_type in ActionType:
         if action_type == ActionType.NUM_ACTIONS:
             continue
-        action = encode_action(action_type)
+        # RECOVER nécessite un unit_id
+        if action_type == ActionType.RECOVER:
+            action = encode_action(action_type, unit_id=0)
+        else:
+            action = encode_action(action_type)
         decoded = decode_action(action)
-        assert decoded["action_type"] == action_type
+        # Convertir en int si c'est un array JAX
+        decoded_type = int(decoded["action_type"]) if hasattr(decoded["action_type"], 'item') else decoded["action_type"]
+        assert decoded_type == action_type
 
 
 def test_directions():

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { LiveGameStateResponse, CityView } from '../types';
-import { TerrainType, UnitType, ResourceType } from '../types';
+import { TerrainType, ResourceType, TechType } from '../types';
 import { Board, type MoveTarget } from './Board';
 import { Scoreboard } from './Scoreboard';
 import {
@@ -11,10 +11,14 @@ import {
   encodeResearchTech,
   encodeTrainUnit,
   encodeHarvestResource,
-  getDirectionDelta,
+  encodeBuild,
+  encodeRecover,
 } from '../utils/actionEncoder';
+import { BUILDING_DEFINITIONS, CITY_BUILDINGS } from '../data/buildings';
+import { BuildingType } from '../types';
 import { TECHNOLOGY_TREE } from '../data/techTree';
 import { getResourceDefinition, HARVEST_ZONE_OFFSETS } from '../data/resources';
+import { getUnitName, UNIT_DEFINITIONS, TRAINABLE_UNITS as TRAINABLE_UNIT_IDS } from '../data/units';
 
 interface LiveGameViewProps {
   session: LiveGameStateResponse;
@@ -29,14 +33,6 @@ interface LiveGameViewProps {
 }
 
 const HUMAN_PLAYER_ID = 0;
-
-const TRAINABLE_UNITS = [
-  {
-    type: UnitType.WARRIOR,
-    label: 'Guerrier',
-    cost: 2,
-  },
-] as const;
 
 const CITY_LEVEL_POP_THRESHOLDS = [0, 1, 3, 5] as const;
 const CITY_STAR_INCOME_PER_LEVEL = [0, 2, 4, 6] as const;
@@ -472,6 +468,44 @@ export function LiveGameView({
                 </p>
               </div>
             </div>
+            {/* Score breakdown détaillé */}
+            {state.score_breakdown && (
+              <div className="mt-3 bg-gray-900/20 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-2">Détail du score</p>
+                <div className="grid grid-cols-5 gap-1 text-center text-xs">
+                  <div>
+                    <p className="text-emerald-400 font-semibold">
+                      {state.score_breakdown.territory?.[HUMAN_PLAYER_ID] ?? 0}
+                    </p>
+                    <p className="text-gray-500">Territ.</p>
+                  </div>
+                  <div>
+                    <p className="text-blue-400 font-semibold">
+                      {state.score_breakdown.population?.[HUMAN_PLAYER_ID] ?? 0}
+                    </p>
+                    <p className="text-gray-500">Pop.</p>
+                  </div>
+                  <div>
+                    <p className="text-red-400 font-semibold">
+                      {state.score_breakdown.military?.[HUMAN_PLAYER_ID] ?? 0}
+                    </p>
+                    <p className="text-gray-500">Milit.</p>
+                  </div>
+                  <div>
+                    <p className="text-amber-400 font-semibold">
+                      {state.score_breakdown.economy?.[HUMAN_PLAYER_ID] ?? 0}
+                    </p>
+                    <p className="text-gray-500">Éco.</p>
+                  </div>
+                  <div>
+                    <p className="text-purple-400 font-semibold">
+                      {state.score_breakdown.exploration?.[HUMAN_PLAYER_ID] ?? 0}
+                    </p>
+                    <p className="text-gray-500">Explo.</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="mt-4">
@@ -515,19 +549,54 @@ export function LiveGameView({
               {playerUnits.map((unit) => {
                 const unitId = unit.id ?? -1;
                 const isSelected = unitId === selectedUnitId;
+                const unitName = getUnitName(unit.type);
+                const hasActed = unit.has_acted ?? false;
+                const kills = unit.kills ?? 0;
+                const isVeteran = unit.veteran ?? false;
+                const [ux, uy] = unit.pos;
+                const isOnRuin = state.has_ruin?.[uy]?.[ux] ?? false;
+                
                 return (
-                  <button
-                    key={unitId}
-                    onClick={() => handleUnitListClick(unitId)}
-                    className={`w-full text-left px-3 py-2 rounded-lg mb-2 transition ${
-                      isSelected
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
-                    }`}
-                  >
-                    Guerrier #{unitId} – ({unit.pos[0]}, {unit.pos[1]}) · HP{' '}
-                    {unit.hp}
-                  </button>
+                  <div key={unitId} className="mb-2">
+                    <button
+                      onClick={() => handleUnitListClick(unitId)}
+                      className={`w-full text-left px-3 py-2 rounded-lg transition ${
+                        isSelected
+                          ? 'bg-blue-600 text-white'
+                          : hasActed
+                          ? 'bg-gray-800 text-gray-400'
+                          : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>
+                          {isVeteran && <span className="text-yellow-400 mr-1">★</span>}
+                          {unitName} #{unitId}
+                        </span>
+                        <span className="text-xs">
+                          {hasActed && <span className="text-green-400 mr-1">✓</span>}
+                          HP {unit.hp}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        ({unit.pos[0]}, {unit.pos[1]})
+                        {kills > 0 && <span className="ml-2 text-red-400">⚔ {kills} kills</span>}
+                        {isOnRuin && <span className="ml-2 text-amber-400">🏛️ Ruine</span>}
+                      </div>
+                    </button>
+                    {isOnRuin && !hasActed && isPlayerTurn && (
+                      <button
+                        onClick={() => {
+                          const actionId = encodeRecover(unitId);
+                          onSendAction(actionId);
+                        }}
+                        disabled={isBusy}
+                        className="w-full mt-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 rounded-lg text-xs font-semibold disabled:opacity-40"
+                      >
+                        Explorer la ruine
+                      </button>
+                    )}
+                  </div>
                 );
               })}
               {playerUnits.length === 0 && (
@@ -585,26 +654,36 @@ export function LiveGameView({
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {TRAINABLE_UNITS.map((unit) => {
-                    const affordable = playerStars >= unit.cost;
+                  {TRAINABLE_UNIT_IDS.map((unitType) => {
+                    const unitDef = UNIT_DEFINITIONS[unitType];
+                    if (!unitDef) return null;
+                    const requiredTech = unitDef.requiredTech;
+                    const hasTechForUnit = requiredTech === TechType.NONE || hasTech(requiredTech);
+                    const affordable = playerStars >= unitDef.cost;
                     const disabled =
-                      !isPlayerTurn || isBusy || !affordable || cityOccupied;
+                      !isPlayerTurn || isBusy || !affordable || cityOccupied || !hasTechForUnit;
                     const title = !isPlayerTurn
                       ? 'Attendez votre tour'
                       : cityOccupied
                       ? 'Case occupée'
+                      : !hasTechForUnit
+                      ? `Nécessite ${getTechName(requiredTech)}`
                       : !affordable
                       ? "Pas assez d'étoiles"
                       : undefined;
                     return (
                       <button
-                        key={unit.type}
-                        onClick={() => handleTrainUnit(unit.type)}
+                        key={unitType}
+                        onClick={() => handleTrainUnit(unitType)}
                         disabled={disabled}
-                        className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-semibold disabled:opacity-40"
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-40 ${
+                          hasTechForUnit
+                            ? 'bg-emerald-600 hover:bg-emerald-500'
+                            : 'bg-gray-600'
+                        }`}
                         title={title}
                       >
-                        {unit.label} ({unit.cost}★)
+                        {unitDef.name} ({unitDef.cost}★)
                       </button>
                     );
                   })}
@@ -619,6 +698,62 @@ export function LiveGameView({
                     La case est occupée, libérez-la avant de recruter.
                   </p>
                 )}
+                {/* Section construction de bâtiments */}
+                <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
+                  <h4 className="text-sm font-semibold">Construire</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {CITY_BUILDINGS.map((buildingType) => {
+                      const buildingDef = BUILDING_DEFINITIONS[buildingType];
+                      if (!buildingDef) return null;
+                      const [cx, cy] = selectedCity.pos;
+                      
+                      // Vérifier si le bâtiment est déjà construit
+                      let alreadyBuilt = false;
+                      if (buildingType === BuildingType.PORT) alreadyBuilt = !!state.city_ports?.[cy]?.[cx];
+                      if (buildingType === BuildingType.WINDMILL) alreadyBuilt = !!state.city_has_windmill?.[cy]?.[cx];
+                      if (buildingType === BuildingType.FORGE) alreadyBuilt = !!state.city_has_forge?.[cy]?.[cx];
+                      if (buildingType === BuildingType.SAWMILL) alreadyBuilt = !!state.city_has_sawmill?.[cy]?.[cx];
+                      if (buildingType === BuildingType.MARKET) alreadyBuilt = !!state.city_has_market?.[cy]?.[cx];
+                      if (buildingType === BuildingType.TEMPLE) alreadyBuilt = !!state.city_has_temple?.[cy]?.[cx];
+                      if (buildingType === BuildingType.MONUMENT) alreadyBuilt = !!state.city_has_monument?.[cy]?.[cx];
+                      if (buildingType === BuildingType.CITY_WALL) alreadyBuilt = !!state.city_has_wall?.[cy]?.[cx];
+                      if (buildingType === BuildingType.PARK) alreadyBuilt = !!state.city_has_park?.[cy]?.[cx];
+                      
+                      if (alreadyBuilt) return null;
+                      
+                      const requiredTech = buildingDef.requiredTech;
+                      const hasTechForBuilding = requiredTech === TechType.NONE || hasTech(requiredTech);
+                      const affordable = playerStars >= buildingDef.cost;
+                      const disabled = !isPlayerTurn || isBusy || !affordable || !hasTechForBuilding;
+                      const title = !isPlayerTurn
+                        ? 'Attendez votre tour'
+                        : !hasTechForBuilding
+                        ? `Nécessite ${getTechName(requiredTech)}`
+                        : !affordable
+                        ? "Pas assez d'étoiles"
+                        : undefined;
+                      
+                      return (
+                        <button
+                          key={buildingType}
+                          onClick={() => {
+                            const actionId = encodeBuild(buildingType, selectedCity.pos);
+                            onSendAction(actionId);
+                          }}
+                          disabled={disabled}
+                          className={`px-2 py-1 rounded-lg text-xs font-semibold disabled:opacity-40 ${
+                            hasTechForBuilding
+                              ? 'bg-indigo-600 hover:bg-indigo-500'
+                              : 'bg-gray-600'
+                          }`}
+                          title={title}
+                        >
+                          {buildingDef.name} ({buildingDef.cost}★)
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-200">
@@ -656,6 +791,41 @@ export function LiveGameView({
                     </>
                   )}
                 </div>
+                {/* Bâtiments construits */}
+                {(() => {
+                  const [cx, cy] = selectedCity.pos;
+                  const buildings: { name: string; color: string }[] = [];
+                  if (state.city_ports?.[cy]?.[cx]) buildings.push({ name: 'Port', color: 'bg-sky-500' });
+                  if (state.city_has_windmill?.[cy]?.[cx]) buildings.push({ name: 'Moulin', color: 'bg-lime-500' });
+                  if (state.city_has_forge?.[cy]?.[cx]) buildings.push({ name: 'Forge', color: 'bg-orange-500' });
+                  if (state.city_has_sawmill?.[cy]?.[cx]) buildings.push({ name: 'Scierie', color: 'bg-green-500' });
+                  if (state.city_has_market?.[cy]?.[cx]) buildings.push({ name: 'Marché', color: 'bg-yellow-500' });
+                  if (state.city_has_temple?.[cy]?.[cx]) {
+                    const templeLevel = state.city_temple_level?.[cy]?.[cx] ?? 1;
+                    buildings.push({ name: `Temple (niv. ${templeLevel})`, color: 'bg-purple-500' });
+                  }
+                  if (state.city_has_monument?.[cy]?.[cx]) buildings.push({ name: 'Monument', color: 'bg-pink-500' });
+                  if (state.city_has_wall?.[cy]?.[cx]) buildings.push({ name: 'Murs', color: 'bg-gray-500' });
+                  if (state.city_has_park?.[cy]?.[cx]) buildings.push({ name: 'Parc', color: 'bg-emerald-500' });
+                  
+                  if (buildings.length === 0) return null;
+                  
+                  return (
+                    <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
+                      <h4 className="text-sm font-semibold">Bâtiments</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {buildings.map((b) => (
+                          <span
+                            key={b.name}
+                            className={`${b.color} text-white text-xs px-2 py-0.5 rounded-full`}
+                          >
+                            {b.name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="bg-gray-900/30 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold">

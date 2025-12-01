@@ -1,4 +1,4 @@
-import { TerrainType, UnitType } from '../types';
+import { TerrainType, UnitType, ResourceType, BuildingType } from '../types';
 
 /**
  * Obtient le nom de la tribu à partir du playerId
@@ -83,9 +83,73 @@ export function getUnitIcon(unitType: number, playerId?: number): string | null 
   switch (unitType) {
     case UnitType.WARRIOR:
       return `/icons/units/Warrior${tribe}.png`;
+    case UnitType.DEFENDER:
+      return `/icons/units/Defender${tribe}.png`;
+    case UnitType.ARCHER:
+      return `/icons/units/Archer${tribe}.png`;
+    case UnitType.RIDER:
+      return `/icons/units/Rider${tribe}.png`;
+    case UnitType.RAFT:
+      return `/icons/units/Raft${tribe}.png`;
+    case UnitType.KNIGHT:
+      return `/icons/units/Knight${tribe}.png`;
+    case UnitType.SWORDSMAN:
+      return `/icons/units/Swordsman${tribe}.png`;
+    case UnitType.CATAPULT:
+      return `/icons/units/Catapult${tribe}.png`;
+    case UnitType.GIANT:
+      return `/icons/units/Giant${tribe}.png`;
     default:
       // Par défaut, utiliser un guerrier
       return `/icons/units/Warrior${tribe}.png`;
+  }
+}
+
+/**
+ * Mapping des types de ressources vers les chemins d'icônes
+ */
+export function getResourceIcon(resourceType: number): string | null {
+  switch (resourceType) {
+    case ResourceType.FRUIT:
+      return '/icons/resources/Fruit.png';
+    case ResourceType.FISH:
+      return '/icons/resources/Fish.png';
+    case ResourceType.ORE:
+      return '/icons/resources/Ore.png';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Mapping des types de bâtiments vers les chemins d'icônes
+ */
+export function getBuildingIcon(buildingType: number): string | null {
+  switch (buildingType) {
+    case BuildingType.PORT:
+      return '/icons/buildings/Port.png';
+    case BuildingType.WINDMILL:
+      return '/icons/buildings/Windmill.png';
+    case BuildingType.FORGE:
+      return '/icons/buildings/Forge.png';
+    case BuildingType.SAWMILL:
+      return '/icons/buildings/Sawmill.png';
+    case BuildingType.MARKET:
+      return '/icons/buildings/Market.png';
+    case BuildingType.TEMPLE:
+      return '/icons/buildings/Temple.png';
+    case BuildingType.MONUMENT:
+      return '/icons/buildings/Monument.png';
+    case BuildingType.CITY_WALL:
+      return '/icons/buildings/Wall.png';
+    case BuildingType.PARK:
+      return '/icons/buildings/Park.png';
+    case BuildingType.ROAD:
+      return '/icons/buildings/Road.png';
+    case BuildingType.BRIDGE:
+      return '/icons/buildings/Bridge.png';
+    default:
+      return null;
   }
 }
 
@@ -94,13 +158,14 @@ export function getUnitIcon(unitType: number, playerId?: number): string | null 
  * Utilise les icônes spécifiques à chaque tribu et niveau
  * Pour les villes colonisées, affiche le château de la tribu
  */
-export function getCityIcon(level: number, playerId?: number): string | null {
+export function getCityIcon(_level: number, playerId?: number): string | null {
   // Si pas de propriétaire ou propriétaire invalide (village neutre)
   if (playerId === undefined || playerId === null || playerId < 0) {
     return '/icons/cities/Village.png';
   }
   
   // Pour les villes colonisées, utiliser le château de la tribu
+  // TODO: Utiliser _level pour sélectionner un sprite différent selon le niveau de la ville
   const tribeName = getTribeName(playerId);
   return `/icons/cities/castles/${tribeName}_city_castle.png`;
 }

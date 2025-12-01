@@ -7,6 +7,9 @@ export interface UnitView {
   hp: number;
   owner: number;
   has_acted?: boolean;
+  kills?: number;
+  veteran?: boolean;
+  payload_type?: number;
 }
 
 export interface CityView {
@@ -20,9 +23,26 @@ export interface GameStateView {
   cities: CityView[];
   units: UnitView[];
   city_population?: number[][];
-  city_ports?: number[][];
+  city_ports?: boolean[][];
   resource_type?: number[][];
   resource_available?: boolean[][];
+  
+  // Routes, ponts et ruines
+  has_road?: boolean[][];
+  has_bridge?: boolean[][];
+  has_ruin?: boolean[][];
+  
+  // Bâtiments de ville
+  city_has_windmill?: boolean[][];
+  city_has_forge?: boolean[][];
+  city_has_sawmill?: boolean[][];
+  city_has_market?: boolean[][];
+  city_has_temple?: boolean[][];
+  city_temple_level?: number[][];
+  city_has_monument?: boolean[][];
+  city_has_wall?: boolean[][];
+  city_has_park?: boolean[][];
+  
   player_stars?: number[];
   player_income?: number[];
   player_score?: number[];
@@ -90,6 +110,25 @@ export const UnitType = {
   SWORDSMAN: 7,
   CATAPULT: 8,
   GIANT: 9,
+} as const;
+
+// Constantes de bâtiments (correspondant à BuildingType dans le backend)
+export const BuildingType = {
+  NONE: 0,
+  FARM: 1,
+  MINE: 2,
+  HUT: 3,
+  PORT: 4,
+  WINDMILL: 5,
+  FORGE: 6,
+  SAWMILL: 7,
+  MARKET: 8,
+  TEMPLE: 9,
+  MONUMENT: 10,
+  CITY_WALL: 11,
+  PARK: 12,
+  ROAD: 13,
+  BRIDGE: 14,
 } as const;
 
 export const ResourceType = {

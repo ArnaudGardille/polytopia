@@ -1,4 +1,12 @@
-"""Génération d'états initiaux du jeu."""
+"""Génération d'états initiaux du jeu.
+
+Respecte les règles de génération de carte de Polytopia :
+https://polytopia.fandom.com/wiki/Map_Generation
+
+Ordre de génération selon type de carte :
+- Drylands/Lakes/Archipelago/Waterworld : Capitales → Villages primaires → Terrain → Villages secondaires
+- Continents/Pangea : Masses terrestres → Capitales → Villages
+"""
 
 from typing import NamedTuple, Optional
 import jax
@@ -22,6 +30,20 @@ RUINS_COUNT = {
     MapSize.HUGE: 20,
     MapSize.MASSIVE: 23,
 }
+
+# Coefficient de densité de villages selon type de carte
+# Formule villages primaires : floor(tiles * density_coefficient / 150)
+VILLAGE_DENSITY = {
+    MapType.DRYLANDS: 4.0,
+    MapType.LAKES: 3.5,
+    MapType.CONTINENTS: 2.0,  # Continents utilise moins de villages primaires
+    MapType.PANGEA: 2.5,
+    MapType.ARCHIPELAGO: 2.5,
+    MapType.WATERWORLD: 1.5,
+}
+
+# Nombre de banlieues par capitale (pour Lakes/Archipelago)
+SUBURBS_PER_CAPITAL = 2
 
 
 def get_map_dimensions(map_size: MapSize) -> tuple[int, int]:
@@ -97,6 +119,10 @@ class GameConfig(NamedTuple):
 def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
     """Génère un état initial aléatoire.
     
+    Respecte l'ordre de génération Polytopia selon le type de carte :
+    - Drylands/Lakes/Archipelago/Waterworld : Capitales → Villages primaires → Terrain → Villages secondaires
+    - Continents/Pangea : Terrain (masses terrestres) → Capitales → Villages
+    
     Args:
         key: Clé aléatoire JAX
         config: Configuration du jeu
@@ -105,7 +131,10 @@ def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
         GameState initialisé
     """
     height, width = config.get_dimensions()
-    key, terrain_key, resource_key, overlay_key, capital_key, village_key, ruin_key, starfish_key, unit_key = jax.random.split(key, 9)
+    keys = jax.random.split(key, 12)
+    terrain_key, resource_key, overlay_key, capital_key = keys[0], keys[1], keys[2], keys[3]
+    village_primary_key, village_secondary_key, suburb_key = keys[4], keys[5], keys[6]
+    ruin_key, starfish_key, unit_key = keys[7], keys[8], keys[9]
     
     # Créer état vide
     state = GameState.create_empty(
@@ -115,14 +144,39 @@ def init_random(key: jax.random.PRNGKey, config: GameConfig) -> GameState:
         num_players=config.num_players,
     )
     
-    # Générer terrain selon type de carte
-    state = _generate_terrain(state, terrain_key, config)
+    # Ordre de génération selon type de carte
+    map_type = config.map_type
+    uses_quadrant_placement = map_type in (
+        MapType.DRYLANDS, MapType.LAKES, MapType.ARCHIPELAGO, MapType.WATERWORLD, None
+    )
     
-    # Placer les capitales (doit être fait avant villages et ressources)
-    state = _place_capitals(state, capital_key, config)
-    
-    # Générer les villages neutres
-    state = _generate_villages(state, village_key, config)
+    if uses_quadrant_placement:
+        # Drylands/Lakes/Archipelago/Waterworld :
+        # 1. Placer les capitales dans les quadrants
+        state = _place_capitals(state, capital_key, config)
+        
+        # 2. Ajouter banlieues pour Lakes/Archipelago
+        if map_type in (MapType.LAKES, MapType.ARCHIPELAGO):
+            state = _generate_suburbs(state, suburb_key, config)
+        
+        # 3. Placer les villages primaires (avant terrain)
+        state = _generate_villages_primary(state, village_primary_key, config)
+        
+        # 4. Générer le terrain
+        state = _generate_terrain(state, terrain_key, config)
+        
+        # 5. Placer les villages secondaires (après terrain)
+        state = _generate_villages_secondary(state, village_secondary_key, config)
+    else:
+        # Continents/Pangea :
+        # 1. Générer le terrain (masses terrestres et eau)
+        state = _generate_terrain(state, terrain_key, config)
+        
+        # 2. Placer les capitales (sur les masses terrestres)
+        state = _place_capitals(state, capital_key, config)
+        
+        # 3. Générer tous les villages (post-terrain)
+        state = _generate_villages_secondary(state, village_secondary_key, config)
     
     # Générer les ressources naturelles (uniquement près des villes/villages)
     state = _generate_resources(state, resource_key, config)
@@ -157,7 +211,11 @@ def _generate_terrain(
     key: jax.random.PRNGKey,
     config: GameConfig
 ) -> GameState:
-    """Génère le terrain de manière procédurale selon le type de carte."""
+    """Génère le terrain de manière procédurale selon le type de carte.
+    
+    Préserve le terrain sous les villes/villages existants (pour l'ordre
+    de génération où les villages primaires sont placés avant le terrain).
+    """
     rand = jax.random.uniform(key, shape=(state.height, state.width))
     
     prob_plain, prob_forest, prob_mountain, prob_water, prob_water_deep = config.get_terrain_probs()
@@ -190,6 +248,11 @@ def _generate_terrain(
         TerrainType.WATER_DEEP,
         terrain,
     )
+    
+    # S'assurer que les villes/villages existants sont sur terrain terrestre
+    # Les cases avec city_level > 0 doivent être PLAIN (pas d'eau)
+    has_city = state.city_level > 0
+    terrain = jnp.where(has_city, TerrainType.PLAIN, terrain)
 
     return state.replace(terrain=terrain)
 
@@ -297,12 +360,34 @@ def _apply_resource_overlays(
     return state.replace(terrain=terrain)
 
 
+def _get_quadrant_grid(num_players: int) -> tuple[int, int]:
+    """Retourne la grille de quadrants selon le nombre de joueurs.
+    
+    Règles Polytopia :
+    - 1-4 joueurs : 4 quadrants (2x2)
+    - 5-9 joueurs : 9 quadrants (3x3)
+    - 10-16 joueurs : 16 quadrants (4x4)
+    """
+    if num_players <= 4:
+        return 2, 2
+    elif num_players <= 9:
+        return 3, 3
+    else:
+        return 4, 4
+
+
 def _place_capitals(
     state: GameState,
     key: jax.random.PRNGKey,
     config: GameConfig
 ) -> GameState:
-    """Place les capitales des joueurs sur la carte en utilisant des quadrants équitables."""
+    """Place les capitales des joueurs sur la carte en utilisant des quadrants équitables.
+    
+    Respecte les règles Polytopia pour le placement en quadrants :
+    - 1-4 joueurs : 4 quadrants (2x2)
+    - 5-9 joueurs : 9 quadrants (3x3)
+    - 10-16 joueurs : 16 quadrants (4x4)
+    """
     city_owner = state.city_owner.copy()
     city_level = state.city_level.copy()
     city_population = state.city_population.copy()
@@ -314,47 +399,55 @@ def _place_capitals(
     num_players = config.num_players
     height, width = state.height, state.width
     
-    # Calculer le nombre de quadrants (arrondi vers le haut pour avoir au moins un quadrant par joueur)
-    # Pour 2 joueurs : 2x1 ou 1x2, pour 4 joueurs : 2x2, etc.
-    import math
-    cols = math.ceil(math.sqrt(num_players))
-    rows = math.ceil(num_players / cols)
+    # Obtenir la grille de quadrants selon les règles Polytopia
+    grid_rows, grid_cols = _get_quadrant_grid(num_players)
     
     # Dimensions de chaque quadrant
-    quadrant_width = width // cols
-    quadrant_height = height // rows
+    quadrant_width = width // grid_cols
+    quadrant_height = height // grid_rows
+    
+    # Générer l'ordre des quadrants (mélangé pour l'assignation aux joueurs)
+    num_quadrants = grid_rows * grid_cols
+    key, subkey = jax.random.split(key)
+    quadrant_order = jax.random.permutation(subkey, jnp.arange(num_quadrants))
     
     positions = []
     for player_id in range(num_players):
-        # Calculer la position dans la grille de quadrants
-        col = player_id % cols
-        row = player_id // cols
+        # Obtenir le quadrant assigné à ce joueur
+        quadrant_idx = int(quadrant_order[player_id])
+        col = quadrant_idx % grid_cols
+        row = quadrant_idx // grid_cols
         
-        # Centre approximatif du quadrant avec un peu de randomisation
-        center_x = col * quadrant_width + quadrant_width // 2
-        center_y = row * quadrant_height + quadrant_height // 2
+        # Centre approximatif du quadrant avec randomisation dans le quadrant
+        # On évite les bords du quadrant pour ne pas être trop près d'un autre joueur
+        margin = max(1, min(quadrant_width, quadrant_height) // 4)
         
-        # Ajouter un peu de randomisation (±1 case) pour éviter les positions trop prévisibles
         key, subkey = jax.random.split(key)
-        offset_x = jax.random.randint(subkey, (), -1, 2)
+        offset_x = jax.random.randint(subkey, (), -margin, margin + 1)
         key, subkey = jax.random.split(key)
-        offset_y = jax.random.randint(subkey, (), -1, 2)
+        offset_y = jax.random.randint(subkey, (), -margin, margin + 1)
         
-        x = jnp.clip(center_x + offset_x, 1, width - 2)
-        y = jnp.clip(center_y + offset_y, 1, height - 2)
+        center_x = col * quadrant_width + quadrant_width // 2 + int(offset_x)
+        center_y = row * quadrant_height + quadrant_height // 2 + int(offset_y)
+        
+        x = max(1, min(width - 2, center_x))
+        y = max(1, min(height - 2, center_y))
         
         # Chercher une case de plaine proche si la case choisie n'est pas une plaine
-        # On cherche dans un rayon de 2 cases
+        # On cherche dans un rayon de 3 cases
         best_x, best_y = x, y
-        best_dist = 0
-        for dy in range(-2, 3):
-            for dx in range(-2, 3):
+        best_dist = 999
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
                 check_x = x + dx
                 check_y = y + dy
                 if (0 <= check_x < width and 0 <= check_y < height):
-                    if terrain[check_y, check_x] == TerrainType.PLAIN:
+                    # Vérifier que c'est terrestre (pas eau)
+                    is_land = (terrain[check_y, check_x] != TerrainType.WATER_SHALLOW and 
+                              terrain[check_y, check_x] != TerrainType.WATER_DEEP)
+                    if is_land:
                         dist = abs(dx) + abs(dy)
-                        if best_dist == 0 or dist < best_dist:
+                        if dist < best_dist:
                             best_x, best_y = check_x, check_y
                             best_dist = dist
         
@@ -397,18 +490,40 @@ def _place_capitals(
     )
 
 
-def _generate_villages(
+def _get_num_primary_villages(config: GameConfig) -> int:
+    """Calcule le nombre de villages primaires selon la formule Polytopia.
+    
+    Formule : floor(total_tiles * density_coefficient / 150)
+    """
+    height, width = config.get_dimensions()
+    total_tiles = height * width
+    
+    if config.map_type is not None:
+        density = VILLAGE_DENSITY.get(config.map_type, 3.0)
+    else:
+        density = 3.0  # Valeur par défaut
+    
+    return int(total_tiles * density / 150)
+
+
+def _get_num_secondary_villages(config: GameConfig, num_existing: int) -> int:
+    """Calcule le nombre de villages secondaires.
+    
+    Vise environ 2 villages par joueur au total.
+    """
+    target_total = config.num_players * 2
+    return max(0, target_total - num_existing)
+
+
+def _generate_suburbs(
     state: GameState,
     key: jax.random.PRNGKey,
     config: GameConfig
 ) -> GameState:
-    """Génère les villages neutres sur la carte.
+    """Génère les banlieues (suburbs) près des capitales pour Lakes/Archipelago.
     
-    Les villages sont placés :
-    - À au moins 2 cases des capitales
-    - À au moins 1 case des bords
-    - À au moins 2 cases entre eux
-    - Sur terrain terrestre (plaine, forêt, montagne)
+    Les banlieues sont des villages placés à distance 2-3 des capitales,
+    typiquement 2 par capitale.
     """
     city_owner = state.city_owner.copy()
     city_level = state.city_level.copy()
@@ -416,92 +531,225 @@ def _generate_villages(
     terrain = state.terrain.copy()
     
     height, width = state.height, state.width
-    num_players = config.num_players
     
-    # Calculer le nombre de villages souhaités (environ 2-3 par joueur)
-    num_villages_target = num_players * 2 + int(jax.random.randint(key, (), 0, num_players + 1))
-    
-    # Créer une grille de validité pour les villages
-    # Une case est valide si :
-    # - Pas de capitale à moins de 2 cases
-    # - À au moins 1 case du bord
-    # - Terrain terrestre (pas eau)
-    valid_mask = jnp.ones((height, width), dtype=jnp.bool_)
-    
-    # Exclure les bords (1 case de marge)
-    valid_mask = valid_mask.at[0, :].set(False)
-    valid_mask = valid_mask.at[height-1, :].set(False)
-    valid_mask = valid_mask.at[:, 0].set(False)
-    valid_mask = valid_mask.at[:, width-1].set(False)
-    
-    # Exclure les cases d'eau
-    is_water = (terrain == TerrainType.WATER_SHALLOW) | (terrain == TerrainType.WATER_DEEP)
-    valid_mask = valid_mask & ~is_water
-    
-    # Exclure les cases déjà occupées par une capitale
-    has_capital = city_level > 0
-    valid_mask = valid_mask & ~has_capital
-    
-    # Exclure les cases à moins de 2 cases d'une capitale (distance de Manhattan)
-    # On crée une grille de distance minimale aux capitales
-    capital_distances = jnp.full((height, width), 999, dtype=jnp.int32)
+    # Trouver les positions des capitales
+    capital_positions = []
     for y in range(height):
         for x in range(width):
-            if bool(has_capital[y, x]):
-                # Calculer distance de Manhattan à toutes les cases
-                for check_y in range(height):
-                    for check_x in range(width):
-                        dist = abs(check_x - x) + abs(check_y - y)
-                        capital_distances = capital_distances.at[check_y, check_x].set(
-                            jnp.minimum(capital_distances[check_y, check_x], dist)
-                        )
+            if bool(city_level[y, x] > 0) and bool(city_owner[y, x] >= 0):
+                capital_positions.append((x, y))
     
-    # Exclure les cases à moins de 2 cases d'une capitale
-    valid_mask = valid_mask & (capital_distances >= 2)
+    suburb_positions = []
     
-    # Placer les villages de manière itérative
-    # On utilise une approche simple avec boucles Python (acceptable pour la génération initiale)
+    for cap_x, cap_y in capital_positions:
+        # Pour chaque capitale, placer SUBURBS_PER_CAPITAL banlieues
+        candidates = []
+        for dy in range(-3, 4):
+            for dx in range(-3, 4):
+                dist = abs(dx) + abs(dy)
+                if dist < 2 or dist > 3:  # Distance 2-3 de la capitale
+                    continue
+                sx, sy = cap_x + dx, cap_y + dy
+                if 0 < sx < width - 1 and 0 < sy < height - 1:
+                    # Pas de ville/village existant et terrain terrestre
+                    is_land = (terrain[sy, sx] != TerrainType.WATER_SHALLOW and 
+                              terrain[sy, sx] != TerrainType.WATER_DEEP)
+                    no_city = city_level[sy, sx] == 0
+                    if is_land and bool(no_city):
+                        candidates.append((sx, sy))
+        
+        if candidates:
+            key, subkey = jax.random.split(key)
+            num_candidates = len(candidates)
+            indices = jax.random.permutation(subkey, jnp.arange(num_candidates))
+            
+            placed = 0
+            for idx in indices:
+                if placed >= SUBURBS_PER_CAPITAL:
+                    break
+                sx, sy = candidates[int(idx)]
+                # Vérifier distance aux autres banlieues
+                too_close = False
+                for bx, by in suburb_positions:
+                    if abs(sx - bx) + abs(sy - by) <= 1:
+                        too_close = True
+                        break
+                if not too_close:
+                    suburb_positions.append((sx, sy))
+                    placed += 1
+    
+    # Placer les banlieues
+    for x, y in suburb_positions:
+        city_owner = city_owner.at[y, x].set(NO_OWNER)
+        city_level = city_level.at[y, x].set(1)
+        city_population = city_population.at[y, x].set(0)
+    
+    return state.replace(
+        terrain=terrain,
+        city_owner=city_owner,
+        city_level=city_level,
+        city_population=city_population,
+    )
+
+
+def _generate_villages_primary(
+    state: GameState,
+    key: jax.random.PRNGKey,
+    config: GameConfig
+) -> GameState:
+    """Génère les villages primaires (avant génération du terrain).
+    
+    Ces villages sont placés sur la carte avant que le terrain soit généré.
+    Ils influencent ensuite la génération du terrain autour d'eux.
+    """
+    city_owner = state.city_owner.copy()
+    city_level = state.city_level.copy()
+    city_population = state.city_population.copy()
+    
+    height, width = state.height, state.width
+    
+    # Calculer le nombre de villages primaires
+    num_villages_target = _get_num_primary_villages(config)
+    
+    # Masque de validité
+    valid_mask = jnp.ones((height, width), dtype=jnp.bool_)
+    
+    # Exclure les bords (2 cases de marge pour respecter wiki)
+    valid_mask = valid_mask.at[:2, :].set(False)
+    valid_mask = valid_mask.at[height-2:, :].set(False)
+    valid_mask = valid_mask.at[:, :2].set(False)
+    valid_mask = valid_mask.at[:, width-2:].set(False)
+    
+    # Exclure les cases déjà occupées (capitales, banlieues)
+    has_city = city_level > 0
+    valid_mask = valid_mask & ~has_city
+    
+    # Exclure les cases trop proches des villes existantes (distance 3)
+    for y in range(height):
+        for x in range(width):
+            if bool(has_city[y, x]):
+                for dy in range(-3, 4):
+                    for dx in range(-3, 4):
+                        if abs(dx) + abs(dy) <= 3:
+                            cy, cx = y + dy, x + dx
+                            if 0 <= cy < height and 0 <= cx < width:
+                                valid_mask = valid_mask.at[cy, cx].set(False)
+    
+    # Placer les villages
     village_positions = []
     key, subkey = jax.random.split(key)
     
-    # Générer liste de toutes les positions valides
-    valid_positions = []
-    for y in range(height):
-        for x in range(width):
-            if bool(valid_mask[y, x]):
-                valid_positions.append((x, y))
+    valid_positions = [(x, y) for y in range(height) for x in range(width) if bool(valid_mask[y, x])]
     
-    # Mélanger avec JAX
-    if len(valid_positions) > 0:
-        # Générer indices aléatoires
+    if valid_positions:
         num_valid = len(valid_positions)
         shuffle_indices = jax.random.permutation(subkey, jnp.arange(num_valid))
         
-        # Essayer de placer les villages en respectant la distance minimale
         for idx in shuffle_indices:
             if len(village_positions) >= num_villages_target:
                 break
             
             x, y = valid_positions[int(idx)]
             
-            # Vérifier distance aux villages déjà placés
-            too_close = False
-            for vx, vy in village_positions:
-                dist = abs(x - vx) + abs(y - vy)
-                if dist <= 2:
-                    too_close = True
-                    break
+            # Distance minimale entre villages primaires : 4 cases
+            too_close = any(abs(x - vx) + abs(y - vy) < 4 for vx, vy in village_positions)
             
             if not too_close:
                 village_positions.append((x, y))
     
-    # Placer les villages dans le state
+    # Placer les villages
     for x, y in village_positions:
         city_owner = city_owner.at[y, x].set(NO_OWNER)
         city_level = city_level.at[y, x].set(1)
-        city_population = city_population.at[y, x].set(0)  # Villages commencent à 0 pop
-        # S'assurer que c'est un terrain terrestre (convertir en plaine si nécessaire)
-        if terrain[y, x] == TerrainType.WATER_SHALLOW or terrain[y, x] == TerrainType.WATER_DEEP:
+        city_population = city_population.at[y, x].set(0)
+    
+    return state.replace(
+        city_owner=city_owner,
+        city_level=city_level,
+        city_population=city_population,
+    )
+
+
+def _generate_villages_secondary(
+    state: GameState,
+    key: jax.random.PRNGKey,
+    config: GameConfig
+) -> GameState:
+    """Génère les villages secondaires (après génération du terrain).
+    
+    Ces villages sont placés après le terrain, sur des cases terrestres valides.
+    Ils respectent les contraintes de distance par rapport aux autres villes/villages.
+    """
+    city_owner = state.city_owner.copy()
+    city_level = state.city_level.copy()
+    city_population = state.city_population.copy()
+    terrain = state.terrain.copy()
+    
+    height, width = state.height, state.width
+    
+    # Compter les villages existants
+    num_existing = int(jnp.sum((city_level > 0) & (city_owner == NO_OWNER)))
+    num_villages_target = _get_num_secondary_villages(config, num_existing)
+    
+    if num_villages_target <= 0:
+        return state
+    
+    # Masque de validité
+    valid_mask = jnp.ones((height, width), dtype=jnp.bool_)
+    
+    # Exclure les bords
+    valid_mask = valid_mask.at[0, :].set(False)
+    valid_mask = valid_mask.at[height-1, :].set(False)
+    valid_mask = valid_mask.at[:, 0].set(False)
+    valid_mask = valid_mask.at[:, width-1].set(False)
+    
+    # Exclure l'eau
+    is_water = (terrain == TerrainType.WATER_SHALLOW) | (terrain == TerrainType.WATER_DEEP)
+    valid_mask = valid_mask & ~is_water
+    
+    # Exclure les villes/villages existants et leurs alentours
+    has_city = city_level > 0
+    valid_mask = valid_mask & ~has_city
+    
+    for y in range(height):
+        for x in range(width):
+            if bool(has_city[y, x]):
+                for dy in range(-2, 3):
+                    for dx in range(-2, 3):
+                        if abs(dx) + abs(dy) <= 2:
+                            cy, cx = y + dy, x + dx
+                            if 0 <= cy < height and 0 <= cx < width:
+                                valid_mask = valid_mask.at[cy, cx].set(False)
+    
+    # Placer les villages
+    village_positions = []
+    key, subkey = jax.random.split(key)
+    
+    valid_positions = [(x, y) for y in range(height) for x in range(width) if bool(valid_mask[y, x])]
+    
+    if valid_positions:
+        num_valid = len(valid_positions)
+        shuffle_indices = jax.random.permutation(subkey, jnp.arange(num_valid))
+        
+        for idx in shuffle_indices:
+            if len(village_positions) >= num_villages_target:
+                break
+            
+            x, y = valid_positions[int(idx)]
+            
+            # Distance minimale entre nouveaux villages : 3 cases
+            too_close = any(abs(x - vx) + abs(y - vy) < 3 for vx, vy in village_positions)
+            
+            if not too_close:
+                village_positions.append((x, y))
+    
+    # Placer les villages
+    for x, y in village_positions:
+        city_owner = city_owner.at[y, x].set(NO_OWNER)
+        city_level = city_level.at[y, x].set(1)
+        city_population = city_population.at[y, x].set(0)
+        # S'assurer que c'est terrestre
+        if bool(is_water[y, x]):
             terrain = terrain.at[y, x].set(TerrainType.PLAIN)
     
     return state.replace(
@@ -630,7 +878,11 @@ def _generate_starfish(
 ) -> GameState:
     """Génère les starfish sur la carte.
     
-    Les starfish sont placés : 1 pour 25 cases d'eau (shallow + deep).
+    Règles Polytopia :
+    - 1 starfish pour 25 cases d'eau (shallow + deep)
+    - Ne peuvent pas être adjacents à une autre starfish
+    - Ne peuvent pas être adjacents à une ville (pas de lighthouse dans notre implémentation)
+    - Placés sur shallow ou deep water
     """
     resource_type = state.resource_type.copy()
     resource_available = state.resource_available.copy()
@@ -643,30 +895,52 @@ def _generate_starfish(
     
     # Calculer le nombre de starfish (1 pour 25 cases d'eau)
     num_starfish = int(water_count) // 25
-    if num_starfish == 0 and water_count > 0:
+    if num_starfish == 0 and int(water_count) > 0:
         num_starfish = 1  # Au moins 1 si il y a de l'eau
     
-    # Générer liste de toutes les positions d'eau
-    water_positions = []
+    # Masque de validité pour starfish
+    valid_mask = is_water.copy()
+    
+    # Exclure les cases adjacentes aux villes
+    has_city = state.city_level > 0
     for y in range(height):
         for x in range(width):
-            if bool(is_water[y, x]):
-                water_positions.append((x, y))
+            if bool(has_city[y, x]):
+                for dy in range(-1, 2):
+                    for dx in range(-1, 2):
+                        cy, cx = y + dy, x + dx
+                        if 0 <= cy < height and 0 <= cx < width:
+                            valid_mask = valid_mask.at[cy, cx].set(False)
     
-    # Mélanger et sélectionner les positions pour les starfish
-    if len(water_positions) > 0 and num_starfish > 0:
+    # Générer liste de toutes les positions d'eau valides
+    water_positions = [(x, y) for y in range(height) for x in range(width) if bool(valid_mask[y, x])]
+    
+    starfish_positions = []
+    
+    if water_positions and num_starfish > 0:
         key, subkey = jax.random.split(key)
         num_water = len(water_positions)
         shuffle_indices = jax.random.permutation(subkey, jnp.arange(num_water))
         
-        # Placer les starfish (on utilise ResourceType pour stocker temporairement,
-        # mais en réalité les starfish ne sont pas des ressources récoltables dans Polytopia)
-        # Pour l'instant, on ne les implémente pas comme ressource, juste comme décoratif
-        # Si besoin futur, on pourrait ajouter un champ séparé pour les starfish
-        for i in range(min(num_starfish, len(shuffle_indices))):
-            x, y = water_positions[int(shuffle_indices[i])]
-            # Les starfish sont purement décoratifs dans Polytopia, donc on ne fait rien pour l'instant
-            # Si on veut les implémenter, il faudrait ajouter un champ dans GameState
+        for idx in shuffle_indices:
+            if len(starfish_positions) >= num_starfish:
+                break
+            
+            x, y = water_positions[int(idx)]
+            
+            # Vérifier non-adjacence aux autres starfish (distance > 1)
+            too_close = any(
+                abs(x - sx) <= 1 and abs(y - sy) <= 1
+                for sx, sy in starfish_positions
+            )
+            
+            if not too_close:
+                starfish_positions.append((x, y))
+    
+    # Note : Les starfish sont purement décoratifs dans Polytopia
+    # Pour l'instant, on ne stocke pas leur position car il n'y a pas de champ dédié
+    # On pourrait ajouter un champ has_starfish si nécessaire pour le rendu
+    # TODO: Ajouter has_starfish dans GameState si on veut les afficher
     
     return state.replace(
         resource_type=resource_type,
@@ -679,7 +953,10 @@ def _init_starting_units(
     key: jax.random.PRNGKey,
     config: GameConfig
 ) -> GameState:
-    """Initialise les unités de départ (un guerrier par capitale)."""
+    """Initialise les unités de départ (un guerrier par capitale).
+    
+    Recherche les vraies positions des capitales dans le GameState.
+    """
     units_type = state.units_type.copy()
     units_pos = state.units_pos.copy()
     units_hp = state.units_hp.copy()
@@ -687,27 +964,25 @@ def _init_starting_units(
     units_active = state.units_active.copy()
     units_payload = state.units_payload_type.copy()
     
+    height, width = state.height, state.width
     unit_idx = 0
     
-    # Pour chaque joueur, trouver sa capitale et y placer un guerrier
-    # On utilise les positions calculées dans _place_capitals
-    positions = []
-    for player_id in range(config.num_players):
-        if player_id == 0:
-            pos = (1, 1)  # Coin supérieur gauche
-        elif player_id == 1:
-            pos = (config.width - 2, config.height - 2)  # Coin inférieur droit
-        else:
-            # Pour plus de 2 joueurs, répartir sur les autres coins
-            if player_id == 2:
-                pos = (config.width - 2, 1)  # Coin supérieur droit
-            else:  # player_id == 3
-                pos = (1, config.height - 2)  # Coin inférieur gauche
-        positions.append((player_id, pos))
+    # Trouver les positions réelles des capitales de chaque joueur
+    capital_positions = {}
+    for y in range(height):
+        for x in range(width):
+            owner = int(state.city_owner[y, x])
+            level = int(state.city_level[y, x])
+            if owner >= 0 and level > 0:
+                # C'est une ville appartenant à un joueur
+                if owner not in capital_positions:
+                    capital_positions[owner] = (x, y)
     
-    # Placer les unités
-    for player_id, (x, y) in positions:
-        if unit_idx < config.max_units and x < config.width and y < config.height:
+    # Placer un guerrier sur chaque capitale et marquer leur vision comme explorée
+    tiles_explored = state.tiles_explored.copy()
+    for player_id in range(config.num_players):
+        if player_id in capital_positions and unit_idx < config.max_units:
+            x, y = capital_positions[player_id]
             units_type = units_type.at[unit_idx].set(UnitType.WARRIOR)
             units_pos = units_pos.at[unit_idx, 0].set(x)
             units_pos = units_pos.at[unit_idx, 1].set(y)
@@ -715,6 +990,21 @@ def _init_starting_units(
             units_owner = units_owner.at[unit_idx].set(player_id)
             units_active = units_active.at[unit_idx].set(True)
             units_payload = units_payload.at[unit_idx].set(UnitType.WARRIOR)
+            
+            # Marquer vision initiale autour de l'unité (3x3, rayon 1)
+            for dy in range(-1, 2):
+                for dx in range(-1, 2):
+                    vision_y = y + dy
+                    vision_x = x + dx
+                    valid_y = (vision_y >= 0) & (vision_y < height)
+                    valid_x = (vision_x >= 0) & (vision_x < width)
+                    valid_pos = valid_y & valid_x
+                    tiles_explored = jnp.where(
+                        valid_pos,
+                        tiles_explored.at[player_id, vision_y, vision_x].set(True),
+                        tiles_explored
+                    )
+            
             unit_idx += 1
     
     return state.replace(
@@ -724,4 +1014,5 @@ def _init_starting_units(
         units_owner=units_owner,
         units_active=units_active,
         units_payload_type=units_payload,
+        tiles_explored=tiles_explored,
     )

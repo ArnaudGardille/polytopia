@@ -110,6 +110,17 @@ export function encodeHarvestResource(targetPos: [number, number]): number {
   });
 }
 
+export function encodeBuild(
+  buildingType: number,
+  targetPos: [number, number]
+): number {
+  return encodeAction({
+    actionType: ActionType.BUILD,
+    targetPos,
+    unitType: buildingType, // buildingType est encodé dans le même champ que unitType
+  });
+}
+
 export function encodeEndTurn(): number {
   return encodeAction({ actionType: ActionType.END_TURN });
 }

@@ -24,14 +24,45 @@ def state_to_dict(state: GameState) -> dict:
     city_has_port_arr = np.array(state.city_has_port, copy=True)
     resource_type_arr = np.array(state.resource_type, copy=True)
     resource_available_arr = np.array(state.resource_available, copy=True)
+    
+    # Routes, ponts et ruines
+    has_road_arr = np.array(state.has_road, copy=True)
+    has_bridge_arr = np.array(state.has_bridge, copy=True)
+    has_ruin_arr = np.array(state.has_ruin, copy=True)
+    
+    # Bâtiments de ville
+    city_has_windmill_arr = np.array(state.city_has_windmill, copy=True)
+    city_has_forge_arr = np.array(state.city_has_forge, copy=True)
+    city_has_sawmill_arr = np.array(state.city_has_sawmill, copy=True)
+    city_has_market_arr = np.array(state.city_has_market, copy=True)
+    city_has_temple_arr = np.array(state.city_has_temple, copy=True)
+    city_temple_level_arr = np.array(state.city_temple_level, copy=True)
+    city_has_monument_arr = np.array(state.city_has_monument, copy=True)
+    city_has_wall_arr = np.array(state.city_has_wall, copy=True)
+    city_has_park_arr = np.array(state.city_has_park, copy=True)
 
     terrain = terrain_arr.tolist()
     city_owner = city_owner_arr.tolist()
     city_level = city_level_arr.tolist()
     city_population = city_population_arr.tolist()
-    city_has_port = city_has_port_arr.tolist()
+    city_has_port = city_has_port_arr.astype(bool).tolist()
     resource_type = resource_type_arr.tolist()
     resource_available = resource_available_arr.astype(bool).tolist()
+    
+    # Convertir en listes Python
+    has_road = has_road_arr.astype(bool).tolist()
+    has_bridge = has_bridge_arr.astype(bool).tolist()
+    has_ruin = has_ruin_arr.astype(bool).tolist()
+    
+    city_has_windmill = city_has_windmill_arr.astype(bool).tolist()
+    city_has_forge = city_has_forge_arr.astype(bool).tolist()
+    city_has_sawmill = city_has_sawmill_arr.astype(bool).tolist()
+    city_has_market = city_has_market_arr.astype(bool).tolist()
+    city_has_temple = city_has_temple_arr.astype(bool).tolist()
+    city_temple_level = city_temple_level_arr.tolist()
+    city_has_monument = city_has_monument_arr.astype(bool).tolist()
+    city_has_wall = city_has_wall_arr.astype(bool).tolist()
+    city_has_park = city_has_park_arr.astype(bool).tolist()
     
     # Extraire uniquement les unités actives (optimisé)
     active_units = []
@@ -119,6 +150,21 @@ def state_to_dict(state: GameState) -> dict:
         "city_has_port": city_has_port,
         "resource_type": resource_type,
         "resource_available": resource_available,
+        # Routes, ponts et ruines
+        "has_road": has_road,
+        "has_bridge": has_bridge,
+        "has_ruin": has_ruin,
+        # Bâtiments de ville
+        "city_has_windmill": city_has_windmill,
+        "city_has_forge": city_has_forge,
+        "city_has_sawmill": city_has_sawmill,
+        "city_has_market": city_has_market,
+        "city_has_temple": city_has_temple,
+        "city_temple_level": city_temple_level,
+        "city_has_monument": city_has_monument,
+        "city_has_wall": city_has_wall,
+        "city_has_park": city_has_park,
+        # Unités et état du jeu
         "units": active_units,
         "current_player": current_player,
         "turn": turn,
@@ -172,6 +218,34 @@ def dict_to_state(data: dict) -> GameState:
         state = state.replace(city_population=jnp.array(data["city_population"], dtype=jnp.int32))
     if "city_has_port" in data:
         state = state.replace(city_has_port=jnp.array(data["city_has_port"], dtype=jnp.bool_))
+    
+    # Restaurer les bâtiments de ville
+    if "city_has_windmill" in data:
+        state = state.replace(city_has_windmill=jnp.array(data["city_has_windmill"], dtype=jnp.bool_))
+    if "city_has_forge" in data:
+        state = state.replace(city_has_forge=jnp.array(data["city_has_forge"], dtype=jnp.bool_))
+    if "city_has_sawmill" in data:
+        state = state.replace(city_has_sawmill=jnp.array(data["city_has_sawmill"], dtype=jnp.bool_))
+    if "city_has_market" in data:
+        state = state.replace(city_has_market=jnp.array(data["city_has_market"], dtype=jnp.bool_))
+    if "city_has_temple" in data:
+        state = state.replace(city_has_temple=jnp.array(data["city_has_temple"], dtype=jnp.bool_))
+    if "city_temple_level" in data:
+        state = state.replace(city_temple_level=jnp.array(data["city_temple_level"], dtype=jnp.int32))
+    if "city_has_monument" in data:
+        state = state.replace(city_has_monument=jnp.array(data["city_has_monument"], dtype=jnp.bool_))
+    if "city_has_wall" in data:
+        state = state.replace(city_has_wall=jnp.array(data["city_has_wall"], dtype=jnp.bool_))
+    if "city_has_park" in data:
+        state = state.replace(city_has_park=jnp.array(data["city_has_park"], dtype=jnp.bool_))
+    
+    # Restaurer les routes, ponts et ruines
+    if "has_road" in data:
+        state = state.replace(has_road=jnp.array(data["has_road"], dtype=jnp.bool_))
+    if "has_bridge" in data:
+        state = state.replace(has_bridge=jnp.array(data["has_bridge"], dtype=jnp.bool_))
+    if "has_ruin" in data:
+        state = state.replace(has_ruin=jnp.array(data["has_ruin"], dtype=jnp.bool_))
     
     # Restaurer les ressources
     if "resource_type" in data:

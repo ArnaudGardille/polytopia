@@ -57,12 +57,12 @@ def encode_action(
     """Encode une action en un entier.
     
     Format d'encodage simple:
-    - ActionType: 3 bits (0-6)
+    - ActionType: 4 bits (0-15, supporte jusqu'à 16 types d'actions)
     - unit_id: 8 bits (0-255)
     - direction: 3 bits (0-7)
-    - target_x: 6 bits (0-63)
-    - target_y: 6 bits (0-63)
-    - unit_type: 4 bits (0-15)
+    - target_x: 5 bits (0-31, suffisant pour carte 30x30)
+    - target_y: 5 bits (0-31, suffisant pour carte 30x30)
+    - unit_type: 5 bits (0-31, supporte techs et types d'unités)
     
     Total: 30 bits (fits in int32)
     
@@ -79,18 +79,18 @@ def encode_action(
     encoded = action_type
     
     if unit_id is not None:
-        encoded |= (unit_id & 0xFF) << 3
+        encoded |= (unit_id & 0xFF) << 4  # Décalé de 4 au lieu de 3
     
     if direction is not None:
-        encoded |= (direction & 0x7) << 11
+        encoded |= (direction & 0x7) << 12  # Décalé de 12 au lieu de 11
     
     if target_pos is not None:
         x, y = target_pos
-        encoded |= (x & 0x3F) << 14
-        encoded |= (y & 0x3F) << 20
+        encoded |= (x & 0x1F) << 15  # 5 bits pour target_x (0-31)
+        encoded |= (y & 0x1F) << 20  # 5 bits pour target_y (0-31)
     
     if unit_type is not None:
-        encoded |= (unit_type & 0xF) << 26
+        encoded |= (unit_type & 0x1F) << 25  # 5 bits pour unit_type (0-31)
     
     return encoded
 
@@ -111,19 +111,19 @@ def decode_action(action_id: int) -> dict:
     action_id_array = jnp.asarray(action_id, dtype=jnp.int32)
     
     # Extraire les champs avec opérations JAX pures
-    action_type = action_id_array & 0x7
-    unit_id_raw = (action_id_array >> 3) & 0xFF
-    direction_raw = (action_id_array >> 11) & 0x7
-    target_x_raw = (action_id_array >> 14) & 0x3F
-    target_y_raw = (action_id_array >> 20) & 0x3F
-    unit_type_raw = (action_id_array >> 26) & 0xF
+    action_type = action_id_array & 0xF  # 4 bits pour action_type (0-15)
+    unit_id_raw = (action_id_array >> 4) & 0xFF  # 8 bits pour unit_id (0-255)
+    direction_raw = (action_id_array >> 12) & 0x7  # 3 bits pour direction (0-7)
+    target_x_raw = (action_id_array >> 15) & 0x1F  # 5 bits pour target_x (0-31)
+    target_y_raw = (action_id_array >> 20) & 0x1F  # 5 bits pour target_y (0-31)
+    unit_type_raw = (action_id_array >> 25) & 0x1F  # 5 bits pour unit_type (0-31)
     
     # Utiliser jnp.where pour gérer les valeurs invalides (valeurs sentinelles -1)
     # Ces valeurs seront converties en None dans le dict si elles sont invalides
     unit_id_val = jnp.where(unit_id_raw < 255, unit_id_raw, -1)
     direction_val = jnp.where(direction_raw < Direction.NUM_DIRECTIONS, direction_raw, -1)
-    target_x_val = jnp.where((target_x_raw < 64) & (target_y_raw < 64), target_x_raw, -1)
-    target_y_val = jnp.where((target_x_raw < 64) & (target_y_raw < 64), target_y_raw, -1)
+    target_x_val = jnp.where((target_x_raw < 32) & (target_y_raw < 32), target_x_raw, -1)
+    target_y_val = jnp.where((target_x_raw < 32) & (target_y_raw < 32), target_y_raw, -1)
     unit_type_val = jnp.where(unit_type_raw > 0, unit_type_raw, -1)
     
     # Essayer de convertir en Python pour le dict

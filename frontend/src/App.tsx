@@ -248,9 +248,9 @@ function App() {
       
       // Log pour déboguer
       console.log('[Frontend] État reçu:', {
-        units: updated.state.units.length,
+        unitsCount: updated.state.units.length,
         currentPlayer: updated.state.current_player,
-        units: updated.state.units.map(u => ({ id: u.id, pos: u.pos, owner: u.owner }))
+        unitDetails: updated.state.units.map(u => ({ id: u.id, pos: u.pos, owner: u.owner }))
       });
       
       setLiveSession(updated);
