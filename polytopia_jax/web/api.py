@@ -52,11 +52,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Configurer CORS pour permettre les requêtes depuis le frontend
+# Configurer CORS pour permettre les requêtes depuis le frontend.
+# `allow_credentials=True` est incompatible avec `allow_origins=["*"]`
+# (les navigateurs rejettent la combinaison). On garde le wildcard pour le
+# développement et on désactive les credentials.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En développement, autoriser toutes les origines
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -278,8 +281,8 @@ async def start_live_creative_game(config: LiveGameConfig):
         strategy=config.strategy,
         seed=config.seed,
         view_options=view_options,
-        board_size=getattr(config, 'board_size', None),
-        max_turns=getattr(config, 'max_turns', None),
+        board_size=config.board_size,
+        max_turns=config.max_turns,
     )
     return _session_to_response(session, view_options)
 

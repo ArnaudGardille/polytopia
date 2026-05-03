@@ -121,11 +121,7 @@ class GameStateView(BaseModel):
         city_level = state.get("city_level", [])
         city_population = state.get("city_population", [])
         city_ports = state.get("city_has_port", [])
-        
-        # Récupérer le masque de visibilité
-        visibility_mask = state.get("visibility_mask")
-        current_player = state.get("current_player", 0)
-        
+
         # Si pas de masque, considérer toute la carte visible
         is_visible = None
         if visibility_mask:
