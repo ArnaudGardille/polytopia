@@ -8,20 +8,16 @@ dependencies = [
     "jaxlib>=0.4.0",
     "flax>=0.7.0",
     "numpy>=1.24.0",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "pydantic>=2.0.0",
-    "httpx>=0.25.0",
-    "requests>=2.31.0",
-    "beautifulsoup4>=4.12.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+]
+rl = [
+    "gymnasium>=0.29.0",
+    "pettingzoo>=1.24.0",
 ]
 
 [build-system]
@@ -32,7 +28,6 @@ build-backend = "setuptools.build_meta"
 packages = [
     "polytopia_jax",
     "polytopia_jax.core",
-    "polytopia_jax.web",
     "polytopia_jax.ai",
     "rl",
 ]
