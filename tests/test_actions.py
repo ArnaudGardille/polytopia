@@ -149,6 +149,50 @@ def test_constants():
     assert decode_action(END_TURN_ACTION)["action_type"] == ActionType.END_TURN
 
 
+def _ts_encode_action(
+    action_type: int,
+    unit_id: int | None = None,
+    direction: int | None = None,
+    target_pos: tuple[int, int] | None = None,
+    unit_type: int | None = None,
+) -> int:
+    """Réplique exacte de frontend/src/utils/actionEncoder.ts::encodeAction.
+
+    Toute divergence entre cette fonction et `encode_action` rend les
+    actions du frontend illisibles côté backend. Ce test verrouille la
+    convention partagée (cf. documentation dans actionEncoder.ts).
+    """
+    encoded = action_type & 0xF
+    if unit_id is not None:
+        encoded |= (unit_id & 0xFF) << 4
+    if direction is not None:
+        encoded |= (direction & 0x7) << 12
+    if target_pos is not None:
+        encoded |= (target_pos[0] & 0x1F) << 15
+        encoded |= (target_pos[1] & 0x1F) << 20
+    if unit_type is not None:
+        encoded |= (unit_type & 0x1F) << 25
+    return encoded
+
+
+def test_typescript_encoder_matches_python():
+    """Verrouille la convention de bit packing partagée Python ↔ TypeScript."""
+    cases = [
+        dict(action_type=ActionType.NO_OP),
+        dict(action_type=ActionType.END_TURN),
+        dict(action_type=ActionType.MOVE, unit_id=5, direction=Direction.RIGHT),
+        dict(action_type=ActionType.MOVE, unit_id=255, direction=Direction.UP_LEFT),
+        dict(action_type=ActionType.ATTACK, unit_id=10, target_pos=(15, 20)),
+        dict(action_type=ActionType.ATTACK, unit_id=7, target_pos=(31, 31)),
+        dict(action_type=ActionType.TRAIN_UNIT, unit_type=1, target_pos=(3, 4)),
+        dict(action_type=ActionType.RESEARCH_TECH, unit_type=20),
+        dict(action_type=ActionType.HARVEST_RESOURCE, target_pos=(0, 0)),
+        dict(action_type=ActionType.RECOVER, unit_id=42),
+    ]
+    for case in cases:
+        assert encode_action(**case) == _ts_encode_action(**case), case
+
+
 def test_direction_delta_array():
     """Test que DIRECTION_DELTA est correct."""
     assert DIRECTION_DELTA.shape == (8, 2)

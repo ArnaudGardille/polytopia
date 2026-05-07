@@ -36,10 +36,11 @@ source venv/bin/activate
 pip install 'fastapi>=0.104.0' 'uvicorn[standard]>=0.24.0' 'pydantic>=2.0.0' 'httpx>=0.25.0'
 
 # Installer le projet en mode développement
-pip install -e . --no-compile
+pip install -e .
 ```
 
-Note : L'option `--no-compile` évite les erreurs de compilation avec JAX sur Python 3.9.
+Note : `pyproject.toml` exige Python ≥ 3.10. Si vous travaillez avec une
+version plus ancienne, mettez à jour votre interpréteur avant d'installer.
 
 ## Lancer le serveur web
 

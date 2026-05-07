@@ -40,6 +40,14 @@ const DELTA_TO_DIRECTION: Record<string, Direction> = Object.entries(
   return acc;
 }, {} as Record<string, Direction>);
 
+// Format d'encodage — doit rester strictement aligné sur
+// polytopia_jax/core/actions.py::encode_action :
+//   action_type : 4 bits (0..3)
+//   unit_id     : 8 bits (4..11)
+//   direction   : 3 bits (12..14)
+//   target_x    : 5 bits (15..19)
+//   target_y    : 5 bits (20..24)
+//   unit_type   : 5 bits (25..29)
 export function encodeAction(params: {
   actionType: ActionType;
   unitId?: number;
@@ -48,23 +56,23 @@ export function encodeAction(params: {
   unitType?: number;
 }): number {
   const { actionType, unitId, direction, targetPos, unitType } = params;
-  let encoded = actionType;
+  let encoded = actionType & 0xf;
 
   if (typeof unitId === 'number') {
-    encoded |= (unitId & 0xff) << 3;
+    encoded |= (unitId & 0xff) << 4;
   }
 
   if (typeof direction === 'number') {
-    encoded |= (direction & 0x7) << 11;
+    encoded |= (direction & 0x7) << 12;
   }
 
   if (targetPos) {
-    encoded |= (targetPos[0] & 0x3f) << 14;
-    encoded |= (targetPos[1] & 0x3f) << 20;
+    encoded |= (targetPos[0] & 0x1f) << 15;
+    encoded |= (targetPos[1] & 0x1f) << 20;
   }
 
   if (typeof unitType === 'number') {
-    encoded |= (unitType & 0xf) << 26;
+    encoded |= (unitType & 0x1f) << 25;
   }
 
   return encoded;
